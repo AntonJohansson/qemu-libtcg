@@ -425,6 +425,7 @@ void cpu_stq_le_mmu(CPUArchState *env, abi_ptr addr, uint64_t val,
     qemu_plugin_vcpu_mem_cb(env_cpu(env), addr, oi, QEMU_PLUGIN_MEM_W);
 }
 
+#ifndef CONFIG_LIBTCG
 uint32_t cpu_ldub_code(CPUArchState *env, abi_ptr ptr)
 {
     uint32_t ret;
@@ -464,6 +465,7 @@ uint64_t cpu_ldq_code(CPUArchState *env, abi_ptr ptr)
     clear_helper_retaddr();
     return ret;
 }
+#endif
 
 #include "ldst_common.c.inc"
 
