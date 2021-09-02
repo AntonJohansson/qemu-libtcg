@@ -55,7 +55,9 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
                      CPUState *cpu, TranslationBlock *tb, int max_insns)
 {
     uint32_t cflags = tb_cflags(tb);
+#ifndef CONFIG_LIBTCG
     bool plugin_enabled;
+#endif
 
     /* Initialize DisasContext */
     db->tb = tb;
@@ -73,21 +75,25 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
     /* Reset the temp count so that we can identify leaks */
     tcg_clear_temp_count();
 
+#ifndef CONFIG_LIBTCG
     /* Start translating.  */
     gen_tb_start(db->tb);
     ops->tb_start(db, cpu);
     tcg_debug_assert(db->is_jmp == DISAS_NEXT);  /* no early exit */
 
     plugin_enabled = plugin_gen_tb_start(cpu, tb, cflags & CF_MEMI_ONLY);
+#endif
 
     while (true) {
         db->num_insns++;
         ops->insn_start(db, cpu);
         tcg_debug_assert(db->is_jmp == DISAS_NEXT);  /* no early exit */
 
+#ifndef CONFIG_LIBTCG
         if (plugin_enabled) {
             plugin_gen_insn_start(cpu, db);
         }
+#endif
 
         /* Disassemble one instruction.  The translate_insn hook should
            update db->pc_next and db->is_jmp to indicate what should be
@@ -108,6 +114,7 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
             break;
         }
 
+#ifndef CONFIG_LIBTCG
         /*
          * We can't instrument after instructions that change control
          * flow although this only really affects post-load operations.
@@ -115,6 +122,7 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
         if (plugin_enabled) {
             plugin_gen_insn_end();
         }
+#endif
 
         /* Stop translation if the output buffer is full,
            or we have executed all of the allowed instructions.  */
@@ -124,6 +132,7 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
         }
     }
 
+#ifndef CONFIG_LIBTCG
     /* Emit code to exit the TB, as indicated by db->is_jmp.  */
     ops->tb_stop(db, cpu);
     gen_tb_end(db->tb, db->num_insns);
@@ -131,6 +140,7 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
     if (plugin_enabled) {
         plugin_gen_tb_end(cpu);
     }
+#endif
 
     /* The disas_log hook may use these values rather than recompute.  */
     tb->size = db->pc_next - db->pc_first;
