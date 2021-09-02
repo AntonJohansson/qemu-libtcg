@@ -1181,6 +1181,7 @@ void cpu_stq_le_data_ra(CPUArchState *env, abi_ptr ptr,
     clear_helper_retaddr();
 }
 
+#ifndef CONFIG_LIBTCG
 uint32_t cpu_ldub_code(CPUArchState *env, abi_ptr ptr)
 {
     uint32_t ret;
@@ -1220,6 +1221,7 @@ uint64_t cpu_ldq_code(CPUArchState *env, abi_ptr ptr)
     clear_helper_retaddr();
     return ret;
 }
+#endif
 
 /*
  * Do not allow unaligned operations to proceed.  Return the host address.
