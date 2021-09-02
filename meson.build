@@ -3434,6 +3434,7 @@ foreach target : target_dirs
     endif
   elif have_libtcg
     install_headers('include/libtcg/libtcg.h', subdir: 'qemu/libtcg')
+    install_headers('include/tcg/tcg-opc.h', subdir: 'qemu/libtcg/tcg')
     emulator = shared_library('qemu-' + target_name,
                               include_directories: target_inc,
                               install: true,
