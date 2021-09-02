@@ -3081,6 +3081,7 @@ subdir('fpu')
 subdir('accel')
 subdir('plugins')
 subdir('ebpf')
+subdir('libtcg')
 
 common_user_inc = []
 
@@ -3432,6 +3433,7 @@ foreach target : target_dirs
       }]
     endif
   elif have_libtcg
+    install_headers('include/libtcg/libtcg.h', subdir: 'qemu/libtcg')
     emulator = shared_library('qemu-' + target_name,
                               include_directories: target_inc,
                               install: true,
