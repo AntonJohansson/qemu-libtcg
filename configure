@@ -366,6 +366,7 @@ cocoa="auto"
 softmmu="yes"
 linux_user="no"
 bsd_user="no"
+libtcg="no"
 blobs="true"
 pkgversion=""
 pie=""
@@ -1169,6 +1170,10 @@ for opt do
   --disable-bsd-user) bsd_user="no"
   ;;
   --enable-bsd-user) bsd_user="yes"
+  ;;
+  --disable-libtcg) libtcg="no"
+  ;;
+  --enable-libtcg) libtcg="yes"; linux_user="yes"; plugins="no"
   ;;
   --enable-pie) pie="yes"
   ;;
@@ -5170,6 +5175,12 @@ if test "$skip_meson" = no; then
   if ! version_ge "$($meson --version)" 0.56.0; then
     staticpic=$(if test "$pie" = yes; then echo true; else echo false; fi)
   fi
+  # TODO(anjo): Does this feel good? I'm not sure
+  if test "$libtcg" = "yes" ; then
+    staticpic=true
+    have_libtcg=true
+  fi
+
   NINJA=$ninja $meson setup \
         --prefix "$prefix" \
         --libdir "$libdir" \
@@ -5212,6 +5223,7 @@ if test "$skip_meson" = no; then
         -Dfuse=$fuse -Dfuse_lseek=$fuse_lseek -Dguest_agent_msi=$guest_agent_msi -Dbpf=$bpf\
         $(if test "$default_feature" = no; then echo "-Dauto_features=disabled"; fi) \
 	-Dtcg_interpreter=$tcg_interpreter \
+        -Dlibtcg=$have_libtcg \
         $cross_arg \
         "$PWD" "$source_path"
 
