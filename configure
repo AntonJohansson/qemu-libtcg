@@ -245,6 +245,7 @@ EXESUF=""
 system="yes"
 linux_user=""
 bsd_user=""
+libtcg="no"
 plugins="$default_feature"
 subdirs=""
 ninja=""
@@ -732,6 +733,10 @@ for opt do
   --disable-bsd-user) bsd_user="no"
   ;;
   --enable-bsd-user) bsd_user="yes"
+  ;;
+  --disable-libtcg) libtcg="no"
+  ;;
+  --enable-libtcg) libtcg="yes"; linux_user="yes"; plugins="no"; pie="yes"; static="yes"
   ;;
   --enable-pie) pie="yes"
   ;;
@@ -1828,6 +1833,7 @@ if test "$skip_meson" = no; then
   test -n "${LIB_FUZZING_ENGINE+xxx}" && meson_option_add "-Dfuzzing_engine=$LIB_FUZZING_ENGINE"
   test "$plugins" = yes && meson_option_add "-Dplugins=true"
   test "$tcg" != enabled && meson_option_add "-Dtcg=$tcg"
+  test "$libtcg" = yes && meson_option_add -Dlibtcg=true
   run_meson() {
     NINJA=$ninja $meson setup "$@" "$PWD" "$source_path"
   }
