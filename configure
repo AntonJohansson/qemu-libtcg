@@ -5179,6 +5179,8 @@ if test "$skip_meson" = no; then
   if test "$libtcg" = "yes" ; then
     staticpic=true
     have_libtcg=true
+  else
+    have_libtcg=false
   fi
 
   NINJA=$ninja $meson setup \
