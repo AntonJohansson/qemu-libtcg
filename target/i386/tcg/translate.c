@@ -219,8 +219,8 @@ STUB_HELPER(wrmsr, TCGv_env env)
 
 static void gen_eob(DisasContext *s);
 static void gen_jr(DisasContext *s, TCGv dest);
-static void gen_jmp(DisasContext *s, target_ulong eip);
-static void gen_jmp_tb(DisasContext *s, target_ulong eip, int tb_num);
+static void gen_jmp(DisasContext *s, TCGv eip, target_ulong pc);
+static void gen_jmp_tb(DisasContext *s, TCGv eip, int tb_num, target_ulong pc);
 static void gen_op(DisasContext *s1, int op, MemOp ot, int d);
 static void gen_exception_gpf(DisasContext *s);
 
@@ -373,6 +373,14 @@ static void gen_update_cc_op(DisasContext *s)
 #define REG_LH_OFFSET 4
 #endif
 
+/* TODO(anjo): MOVE */
+static inline void get_eip(DisasContext *s, TCGv out) {
+    tcg_gen_movi_tl(out, s->pc - s->cs_base);
+}
+static inline void get_start_eip(DisasContext *s, TCGv out) {
+    tcg_gen_movi_tl(out, s->pc_start - s->cs_base);
+}
+
 /* In instruction encodings for byte register accesses the
  * register number usually indicates "low 8 bits of register N";
  * however there are some special cases where N 4..7 indicates
@@ -511,9 +519,9 @@ static inline void gen_op_st_rm_T0_A0(DisasContext *s, int idx, int d)
     }
 }
 
-static inline void gen_jmp_im(DisasContext *s, target_ulong pc)
+static inline void gen_jmp_im(DisasContext *s, TCGv pc)
 {
-    tcg_gen_movi_tl(s->tmp0, pc);
+    tcg_gen_mov_tl(s->tmp0, pc);
     gen_op_jmp_v(s->tmp0);
 }
 
@@ -1136,13 +1144,13 @@ static inline void gen_jcc1(DisasContext *s, int b, TCGLabel *l1)
 
 /* XXX: does not work with gdbstub "ice" single step - not a
    serious problem */
-static TCGLabel *gen_jz_ecx_string(DisasContext *s, target_ulong next_eip)
+static TCGLabel *gen_jz_ecx_string(DisasContext *s, TCGv next_eip)
 {
     TCGLabel *l1 = gen_new_label();
     TCGLabel *l2 = gen_new_label();
     gen_op_jnz_ecx(s, s->aflag, l1);
     gen_set_label(l2);
-    gen_jmp_tb(s, next_eip, 1);
+    gen_jmp_tb(s, next_eip, 1, s->pc);
     gen_set_label(l1);
     return l2;
 }
@@ -1235,8 +1243,8 @@ static inline void gen_outs(DisasContext *s, MemOp ot)
 /* same method as Valgrind : we generate jumps to current or next
    instruction */
 #define GEN_REPZ(op)                                                          \
-static inline void gen_repz_ ## op(DisasContext *s, MemOp ot,              \
-                                 target_ulong cur_eip, target_ulong next_eip) \
+static inline void gen_repz_ ## op(DisasContext *s, MemOp ot,                 \
+                                 TCGv cur_eip, TCGv next_eip)                 \
 {                                                                             \
     TCGLabel *l2;                                                             \
     gen_update_cc_op(s);                                                      \
@@ -1247,13 +1255,13 @@ static inline void gen_repz_ ## op(DisasContext *s, MemOp ot,              \
        before rep string_insn */                                              \
     if (s->repz_opt)                                                          \
         gen_op_jz_ecx(s, s->aflag, l2);                                       \
-    gen_jmp(s, cur_eip);                                                      \
+    gen_jmp(s, cur_eip, s->pc);                                               \
 }
 
 #define GEN_REPZ2(op)                                                         \
-static inline void gen_repz_ ## op(DisasContext *s, MemOp ot,              \
-                                   target_ulong cur_eip,                      \
-                                   target_ulong next_eip,                     \
+static inline void gen_repz_ ## op(DisasContext *s, MemOp ot,                 \
+                                   TCGv cur_eip,                              \
+                                   TCGv next_eip,                             \
                                    int nz)                                    \
 {                                                                             \
     TCGLabel *l2;                                                             \
@@ -1265,7 +1273,7 @@ static inline void gen_repz_ ## op(DisasContext *s, MemOp ot,              \
     gen_jcc1(s, (JCC_Z << 1) | (nz ^ 1), l2);                                 \
     if (s->repz_opt)                                                          \
         gen_op_jz_ecx(s, s->aflag, l2);                                       \
-    gen_jmp(s, cur_eip);                                                      \
+    gen_jmp(s, cur_eip, s->pc);                                               \
 }
 
 GEN_REPZ(movs)
@@ -1332,7 +1340,7 @@ static void gen_helper_fp_arith_STN_ST0(int op, int opreg)
     }
 }
 
-static void gen_exception(DisasContext *s, int trapno, target_ulong cur_eip)
+static void gen_exception(DisasContext *s, int trapno, TCGv cur_eip)
 {
     gen_update_cc_op(s);
     gen_jmp_im(s, cur_eip);
@@ -1344,13 +1352,19 @@ static void gen_exception(DisasContext *s, int trapno, target_ulong cur_eip)
    the instruction is known, but it isn't allowed in the current cpu mode.  */
 static void gen_illegal_opcode(DisasContext *s)
 {
-    gen_exception(s, EXCP06_ILLOP, s->pc_start - s->cs_base);
+    TCGv new_next_start_eip = tcg_temp_new();
+    get_start_eip(s, new_next_start_eip);
+    gen_exception(s, EXCP06_ILLOP, new_next_start_eip);
+    tcg_temp_free(new_next_start_eip);
 }
 
 /* Generate #GP for the current instruction. */
 static void gen_exception_gpf(DisasContext *s)
 {
-    gen_exception(s, EXCP0D_GPF, s->pc_start - s->cs_base);
+    TCGv new_next_start_eip = tcg_temp_new();
+    get_start_eip(s, new_next_start_eip);
+    gen_exception(s, EXCP0D_GPF, new_next_start_eip);
+    tcg_temp_free(new_next_start_eip);
 }
 
 /* Check for cpl == 0; if not, raise #GP and return false. */
@@ -2314,10 +2328,8 @@ static inline int insn_const_size(MemOp ot)
     }
 }
 
-static void gen_goto_tb(DisasContext *s, int tb_num, target_ulong eip)
+static void gen_goto_tb(DisasContext *s, int tb_num, TCGv eip, target_ulong pc)
 {
-    target_ulong pc = s->cs_base + eip;
-
     if (translator_use_goto_tb(&s->base, pc))  {
         /* jump to same page: we can use a direct jump */
         tcg_gen_goto_tb(tb_num);
@@ -2332,7 +2344,8 @@ static void gen_goto_tb(DisasContext *s, int tb_num, target_ulong eip)
 }
 
 static inline void gen_jcc(DisasContext *s, int b,
-                           target_ulong val, target_ulong next_eip)
+                           TCGv val, TCGv next_eip,
+                           target_ulong pc)
 {
     TCGLabel *l1, *l2;
 
@@ -2340,10 +2353,10 @@ static inline void gen_jcc(DisasContext *s, int b,
         l1 = gen_new_label();
         gen_jcc1(s, b, l1);
 
-        gen_goto_tb(s, 0, next_eip);
+        gen_goto_tb(s, 0, next_eip, pc);
 
         gen_set_label(l1);
-        gen_goto_tb(s, 1, val);
+        gen_goto_tb(s, 1, val, pc);
     } else {
         l1 = gen_new_label();
         l2 = gen_new_label();
@@ -2595,12 +2608,16 @@ static void gen_unknown_opcode(CPUX86State *env, DisasContext *s)
 /* an interrupt is different from an exception because of the
    privilege checks */
 static void gen_interrupt(DisasContext *s, int intno,
-                          target_ulong cur_eip, target_ulong next_eip)
+                          TCGv cur_eip, TCGv next_eip)
 {
+    /* TODO(anjo): ? */
+    TCGv tmp = tcg_temp_new();
+    tcg_gen_sub_tl(tmp, next_eip, cur_eip);
     gen_update_cc_op(s);
     gen_jmp_im(s, cur_eip);
     gen_helper_raise_interrupt(cpu_env, tcg_const_i32(intno),
-                               tcg_const_i32(next_eip - cur_eip));
+                               tmp);
+    tcg_temp_free(tmp);
     s->base.is_jmp = DISAS_NORETURN;
 }
 
@@ -2702,21 +2719,21 @@ static void gen_jr(DisasContext *s, TCGv dest)
 
 /* generate a jump to eip. No segment change must happen before as a
    direct call to the next block may occur */
-static void gen_jmp_tb(DisasContext *s, target_ulong eip, int tb_num)
+static void gen_jmp_tb(DisasContext *s, TCGv eip, int tb_num, target_ulong pc)
 {
     gen_update_cc_op(s);
     set_cc_op(s, CC_OP_DYNAMIC);
     if (s->jmp_opt) {
-        gen_goto_tb(s, tb_num, eip);
+        gen_goto_tb(s, tb_num, eip, pc);
     } else {
         gen_jmp_im(s, eip);
         gen_eob(s);
     }
 }
 
-static void gen_jmp(DisasContext *s, target_ulong eip)
+static void gen_jmp(DisasContext *s, TCGv eip, target_ulong pc)
 {
-    gen_jmp_tb(s, eip, 0);
+    gen_jmp_tb(s, eip, 0, pc);
 }
 
 static inline void gen_ldq_env_A0(DisasContext *s, int offset)
@@ -3143,7 +3160,11 @@ static void gen_sse(CPUX86State *env, DisasContext *s, int b,
     }
     /* simple MMX/SSE operation */
     if (s->flags & HF_TS_MASK) {
-        gen_exception(s, EXCP07_PREX, pc_start - s->cs_base);
+        //TCGv new_next_start_eip = tcg_temp_new();
+        // TODO(anjo): change to pc_start
+        //get_start_eip(s, new_next_start_eip);
+        gen_exception(s, EXCP07_PREX, tcg_constant_tl(pc_start - s->cs_base));
+        //tcg_temp_free(new_next_start_eip);
         return;
     }
     if (s->flags & HF_EM_MASK) {
@@ -4553,14 +4574,6 @@ static void gen_sse(CPUX86State *env, DisasContext *s, int b,
     }
 }
 
-/* MOVE */
-static inline void get_eip(DisasContext *s, TCGv out) {
-    tcg_gen_movi_tl(out, s->pc - s->cs_base);
-}
-static inline void get_start_eip(DisasContext *s, TCGv out) {
-    tcg_gen_movi_tl(out, s->pc_start - s->cs_base);
-}
-
 /* convert one instruction. s->base.is_jmp is set if the translation must
    be stopped. Return the next pc value */
 static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
@@ -4572,9 +4585,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
     int modrm, reg, rm, mod, op, opreg, val;
     target_ulong next_eip, tval;
     target_ulong pc_start = s->base.pc_next;
+    TCGv eip_start_tcg = tcg_constant_tl(pc_start - s->cs_base);
 
     TCGv new_next_eip = tcg_temp_new();
-    TCGv new_next_start_eip = tcg_temp_new();
 
     s->pc_start = s->pc = pc_start;
     s->override = -1;
@@ -5467,7 +5480,8 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             gen_op_mov_reg_v(s, dflag, rm, s->T0);
             set_cc_op(s, CC_OP_EFLAGS);
             if (tb_cflags(s->base.tb) & CF_USE_ICOUNT) {
-                gen_jmp(s, s->pc - s->cs_base);
+                get_eip(s, new_next_eip);
+                gen_jmp(s, new_next_eip, s->pc);
             }
             break;
 
@@ -5935,7 +5949,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             if (s->flags & (HF_EM_MASK | HF_TS_MASK)) {
                 /* if CR0.EM or CR0.TS are set, generate an FPU exception */
                 /* XXX: what to do if illegal op ? */
-                gen_exception(s, EXCP07_PREX, pc_start - s->cs_base);
+                // TODO(anjo): change to pc_start
+                //get_start_eip(s, new_next_start_eip);
+                gen_exception(s, EXCP07_PREX, eip_start_tcg);
                 break;
             }
             modrm = x86_ldub_code(env, s);
@@ -6488,7 +6504,11 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
     case 0xa5:
         ot = mo_b_d(b, dflag);
         if (prefixes & (PREFIX_REPZ | PREFIX_REPNZ)) {
-            gen_repz_movs(s, ot, pc_start - s->cs_base, s->pc - s->cs_base);
+            // TODO(anjo): s->pc_start vs pc_start?
+            //get_eip(s, new_next_eip);
+            //get_start_eip(s, new_next_start_eip);
+            //gen_repz_movs(s, ot, new_next_start_eip, new_next_eip);
+            gen_repz_movs(s, ot, eip_start_tcg, tcg_constant_tl(s->pc - s->cs_base));
         } else {
             gen_movs(s, ot);
         }
@@ -6498,7 +6518,10 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
     case 0xab:
         ot = mo_b_d(b, dflag);
         if (prefixes & (PREFIX_REPZ | PREFIX_REPNZ)) {
-            gen_repz_stos(s, ot, pc_start - s->cs_base, s->pc - s->cs_base);
+            //get_eip(s, new_next_eip);
+            //get_start_eip(s, new_next_start_eip);
+            //gen_repz_stos(s, ot, new_next_start_eip, new_next_eip);
+            gen_repz_stos(s, ot, tcg_constant_tl(pc_start - s->cs_base), tcg_constant_tl(s->pc - s->cs_base));
         } else {
             gen_stos(s, ot);
         }
@@ -6507,7 +6530,10 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
     case 0xad:
         ot = mo_b_d(b, dflag);
         if (prefixes & (PREFIX_REPZ | PREFIX_REPNZ)) {
-            gen_repz_lods(s, ot, pc_start - s->cs_base, s->pc - s->cs_base);
+            //get_eip(s, new_next_eip);
+            //get_start_eip(s, new_next_start_eip);
+            //gen_repz_lods(s, ot, new_next_start_eip, new_next_eip);
+            gen_repz_lods(s, ot, tcg_constant_tl(pc_start - s->cs_base), tcg_constant_tl(s->pc - s->cs_base));
         } else {
             gen_lods(s, ot);
         }
@@ -6516,9 +6542,15 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
     case 0xaf:
         ot = mo_b_d(b, dflag);
         if (prefixes & PREFIX_REPNZ) {
-            gen_repz_scas(s, ot, pc_start - s->cs_base, s->pc - s->cs_base, 1);
+            //get_eip(s, new_next_eip);
+            //get_start_eip(s, new_next_start_eip);
+            //gen_repz_scas(s, ot, new_next_start_eip, new_next_eip, 1);
+            gen_repz_scas(s, ot, tcg_constant_tl(pc_start - s->cs_base), tcg_constant_tl(s->pc - s->cs_base), 1);
         } else if (prefixes & PREFIX_REPZ) {
-            gen_repz_scas(s, ot, pc_start - s->cs_base, s->pc - s->cs_base, 0);
+            //get_eip(s, new_next_eip);
+            //get_start_eip(s, new_next_start_eip);
+            //gen_repz_scas(s, ot, new_next_start_eip, new_next_eip, 0);
+            gen_repz_scas(s, ot, tcg_constant_tl(pc_start - s->cs_base), tcg_constant_tl(s->pc - s->cs_base), 0);
         } else {
             gen_scas(s, ot);
         }
@@ -6528,9 +6560,15 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
     case 0xa7:
         ot = mo_b_d(b, dflag);
         if (prefixes & PREFIX_REPNZ) {
-            gen_repz_cmps(s, ot, pc_start - s->cs_base, s->pc - s->cs_base, 1);
+          //get_eip(s, new_next_eip);
+            //get_start_eip(s, new_next_start_eip);
+            //gen_repz_cmps(s, ot, new_next_start_eip, new_next_eip, 1);
+            gen_repz_cmps(s, ot, tcg_constant_tl(pc_start - s->cs_base), tcg_constant_tl(s->pc - s->cs_base), 1);
         } else if (prefixes & PREFIX_REPZ) {
-            gen_repz_cmps(s, ot, pc_start - s->cs_base, s->pc - s->cs_base, 0);
+            //get_eip(s, new_next_eip);
+            //get_start_eip(s, new_next_start_eip);
+            //gen_repz_cmps(s, ot, new_next_start_eip, new_next_eip, 0);
+            gen_repz_cmps(s, ot, tcg_constant_tl(pc_start - s->cs_base), tcg_constant_tl(s->pc - s->cs_base), 0);
         } else {
             gen_cmps(s, ot);
         }
@@ -6548,12 +6586,16 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             gen_io_start();
         }
         if (prefixes & (PREFIX_REPZ | PREFIX_REPNZ)) {
-            gen_repz_ins(s, ot, pc_start - s->cs_base, s->pc - s->cs_base);
+            //get_eip(s, new_next_eip);
+            //get_start_eip(s, new_next_start_eip);
+            //gen_repz_ins(s, ot, new_next_start_eip, new_next_eip);
+            gen_repz_ins(s, ot, tcg_constant_tl(pc_start - s->cs_base), tcg_constant_tl(s->pc - s->cs_base));
             /* jump generated by gen_repz_ins */
         } else {
             gen_ins(s, ot);
             if (tb_cflags(s->base.tb) & CF_USE_ICOUNT) {
-                gen_jmp(s, s->pc - s->cs_base);
+                get_eip(s, new_next_eip);
+                gen_jmp(s, new_next_eip, s->pc);
             }
         }
         break;
@@ -6569,12 +6611,16 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             gen_io_start();
         }
         if (prefixes & (PREFIX_REPZ | PREFIX_REPNZ)) {
-            gen_repz_outs(s, ot, pc_start - s->cs_base, s->pc - s->cs_base);
+            //get_eip(s, new_next_eip);
+            //get_start_eip(s, new_next_start_eip);
+            //gen_repz_outs(s, ot, new_next_start_eip, new_next_eip);
+            gen_repz_outs(s, ot, tcg_constant_tl(pc_start - s->cs_base), tcg_constant_tl(s->pc - s->cs_base));
             /* jump generated by gen_repz_outs */
         } else {
             gen_outs(s, ot);
             if (tb_cflags(s->base.tb) & CF_USE_ICOUNT) {
-                gen_jmp(s, s->pc - s->cs_base);
+                get_eip(s, new_next_eip);
+                gen_jmp(s, new_next_eip, s->pc);
             }
         }
         break;
@@ -6597,7 +6643,8 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
         gen_op_mov_reg_v(s, ot, R_EAX, s->T1);
         gen_bpt_io(s, s->tmp2_i32, ot);
         if (tb_cflags(s->base.tb) & CF_USE_ICOUNT) {
-            gen_jmp(s, s->pc - s->cs_base);
+            get_eip(s, new_next_eip);
+            gen_jmp(s, new_next_eip, s->pc);
         }
         break;
     case 0xe6:
@@ -6616,7 +6663,8 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
         gen_helper_out_func(ot, s->tmp2_i32, s->tmp3_i32);
         gen_bpt_io(s, s->tmp2_i32, ot);
         if (tb_cflags(s->base.tb) & CF_USE_ICOUNT) {
-            gen_jmp(s, s->pc - s->cs_base);
+            get_eip(s, new_next_eip);
+            gen_jmp(s, new_next_eip, s->pc);
         }
         break;
     case 0xec:
@@ -6634,7 +6682,8 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
         gen_op_mov_reg_v(s, ot, R_EAX, s->T1);
         gen_bpt_io(s, s->tmp2_i32, ot);
         if (tb_cflags(s->base.tb) & CF_USE_ICOUNT) {
-            gen_jmp(s, s->pc - s->cs_base);
+            get_eip(s, new_next_eip);
+            gen_jmp(s, new_next_eip, s->pc);
         }
         break;
     case 0xee:
@@ -6653,7 +6702,8 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
         gen_helper_out_func(ot, s->tmp2_i32, s->tmp3_i32);
         gen_bpt_io(s, s->tmp2_i32, ot);
         if (tb_cflags(s->base.tb) & CF_USE_ICOUNT) {
-            gen_jmp(s, s->pc - s->cs_base);
+            get_eip(s, new_next_eip);
+            gen_jmp(s, new_next_eip, s->pc);
         }
         break;
 
@@ -6681,8 +6731,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
     do_lret:
         if (PE(s) && !VM86(s)) {
             gen_update_cc_op(s);
-            get_start_eip(s, new_next_start_eip);
-            gen_op_jmp_v(new_next_start_eip);
+            // TODO(anjo): change to pc_start
+            //get_start_eip(s, new_next_start_eip);
+            gen_op_jmp_v(eip_start_tcg);
             gen_helper_lret_protected(cpu_env, tcg_const_i32(dflag - 1),
                                       tcg_const_i32(val));
         } else {
@@ -6736,7 +6787,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             tcg_gen_movi_tl(s->T0, next_eip);
             gen_push_v(s, s->T0);
             gen_bnd_jmp(s);
-            gen_jmp(s, tval);
+            gen_jmp(s, tcg_constant_tl(tval), s->pc);
         }
         break;
     case 0x9a: /* lcall im */
@@ -6766,7 +6817,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             tval &= 0xffffffff;
         }
         gen_bnd_jmp(s);
-        gen_jmp(s, tval);
+        gen_jmp(s, tcg_constant_tl(tval), s->pc);
         break;
     case 0xea: /* ljmp im */
         {
@@ -6788,7 +6839,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
         if (dflag == MO_16) {
             tval &= 0xffff;
         }
-        gen_jmp(s, tval);
+        gen_jmp(s, tcg_constant_tl(tval), s->pc);
         break;
     case 0x70 ... 0x7f: /* jcc Jb */
         tval = (int8_t)insn_get(env, s, MO_8);
@@ -6806,7 +6857,11 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             tval &= 0xffff;
         }
         gen_bnd_jmp(s);
-        gen_jcc(s, b, tval, next_eip);
+        //TCGv tmp = tcg_temp_local_new();
+        //get_eip(s, tmp);
+        //gen_jcc(s, b, tcg_constant_tl(tval), tmp, s->pc);
+        //tcg_temp_free(tmp);
+        gen_jcc(s, b, tcg_constant_tl(tval), tcg_constant_tl(s->pc - s->cs_base), s->cs_base + tval);
         break;
 
     case 0x190 ... 0x19f: /* setcc Gv */
@@ -7153,7 +7208,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             goto illegal_op;
         val = x86_ldub_code(env, s);
         if (val == 0) {
-            gen_exception(s, EXCP00_DIVZ, pc_start - s->cs_base);
+            // TODO(anjo): change to pc_start
+            //get_start_eip(s, new_next_start_eip);
+            gen_exception(s, EXCP00_DIVZ, eip_start_tcg);
         } else {
             gen_helper_aam(cpu_env, tcg_const_i32(val));
             set_cc_op(s, CC_OP_LOGICB);
@@ -7179,8 +7236,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
         }
         if (prefixes & PREFIX_REPZ) {
             gen_update_cc_op(s);
-            get_start_eip(s, new_next_start_eip);
-            gen_op_jmp_v(new_next_start_eip);
+            // TODO(anjo): change to pc_start
+            //get_start_eip(s, eip_start_tcg);
+            gen_op_jmp_v(eip_start_tcg);
             gen_helper_pause(cpu_env, tcg_const_i32(s->pc - pc_start));
             s->base.is_jmp = DISAS_NORETURN;
         }
@@ -7188,26 +7246,35 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
     case 0x9b: /* fwait */
         if ((s->flags & (HF_MP_MASK | HF_TS_MASK)) ==
             (HF_MP_MASK | HF_TS_MASK)) {
-            gen_exception(s, EXCP07_PREX, pc_start - s->cs_base);
+            // TODO(anjo): change to pc_start
+            //get_start_eip(s, new_next_start_eip);
+            gen_exception(s, EXCP07_PREX, eip_start_tcg);
         } else {
             gen_helper_fwait(cpu_env);
         }
         break;
     case 0xcc: /* int3 */
-        gen_interrupt(s, EXCP03_INT3, pc_start - s->cs_base, s->pc - s->cs_base);
+        get_eip(s, new_next_eip);
+        // TODO(anjo): change to pc_start
+        //get_start_eip(s, new_next_start_eip);
+        gen_interrupt(s, EXCP03_INT3, eip_start_tcg, new_next_eip);
         break;
     case 0xcd: /* int N */
         val = x86_ldub_code(env, s);
         if (check_vm86_iopl(s)) {
-            gen_interrupt(s, val, pc_start - s->cs_base, s->pc - s->cs_base);
+            get_eip(s, new_next_eip);
+            // TODO(anjo): change to pc_start
+            //get_start_eip(s, new_next_start_eip);
+            gen_interrupt(s, val, eip_start_tcg, new_next_eip);
         }
         break;
     case 0xce: /* into */
         if (CODE64(s))
             goto illegal_op;
         gen_update_cc_op(s);
-        get_start_eip(s, new_next_start_eip);
-        gen_op_jmp_v(new_next_start_eip);
+        // TODO(anjo): change to pc_start
+        //get_start_eip(s, new_next_start_eip);
+        gen_op_jmp_v(eip_start_tcg);
         gen_helper_into(cpu_env, tcg_const_i32(s->pc - pc_start));
         break;
 #ifdef WANT_ICEBP
@@ -7308,7 +7375,7 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
 
             gen_set_label(l1);
             /* TODO(anjo): ? */
-            gen_jmp_im(s, tval);
+            gen_jmp_im(s, tcg_constant_tl(tval));
             gen_set_label(l2);
             gen_eob(s);
         }
@@ -7317,8 +7384,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
     case 0x132: /* rdmsr */
         if (check_cpl0(s)) {
             gen_update_cc_op(s);
-            get_start_eip(s, new_next_start_eip);
-            gen_op_jmp_v(new_next_start_eip);
+            // TODO(anjo): change to pc_start
+            //get_start_eip(s, new_next_start_eip);
+            gen_op_jmp_v(eip_start_tcg);
             if (b & 2) {
                 gen_helper_rdmsr(cpu_env);
             } else {
@@ -7331,20 +7399,23 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
         break;
     case 0x131: /* rdtsc */
         gen_update_cc_op(s);
-        get_start_eip(s, new_next_start_eip);
-        gen_op_jmp_v(new_next_start_eip);
+        // TODO(anjo): change to pc_start
+        //get_start_eip(s, new_next_start_eip);
+        gen_op_jmp_v(eip_start_tcg);
         if (tb_cflags(s->base.tb) & CF_USE_ICOUNT) {
             gen_io_start();
         }
         gen_helper_rdtsc(cpu_env);
         if (tb_cflags(s->base.tb) & CF_USE_ICOUNT) {
-            gen_jmp(s, s->pc - s->cs_base);
+            get_eip(s, new_next_eip);
+            gen_jmp(s, new_next_eip, s->pc);
         }
         break;
     case 0x133: /* rdpmc */
         gen_update_cc_op(s);
-        get_start_eip(s, new_next_start_eip);
-        gen_op_jmp_v(new_next_start_eip);
+        // TODO(anjo): change to pc_start
+        //get_start_eip(s, new_next_start_eip);
+        gen_op_jmp_v(eip_start_tcg);
         gen_helper_rdpmc(cpu_env);
         s->base.is_jmp = DISAS_NORETURN;
         break;
@@ -7374,8 +7445,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
     case 0x105: /* syscall */
         /* XXX: is it usable in real mode ? */
         gen_update_cc_op(s);
-        get_start_eip(s, new_next_start_eip);
-        gen_op_jmp_v(new_next_start_eip);
+        // TODO(anjo): change to pc_start
+        //get_start_eip(s, new_next_start_eip);
+        gen_op_jmp_v(eip_start_tcg);
         gen_helper_syscall(cpu_env, tcg_const_i32(s->pc - pc_start));
         /* TF handling for the syscall insn is different. The TF bit is  checked
            after the syscall insn completes. This allows #DB to not be
@@ -7401,15 +7473,17 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
 #endif
     case 0x1a2: /* cpuid */
         gen_update_cc_op(s);
-        get_start_eip(s, new_next_start_eip);
-        gen_op_jmp_v(new_next_start_eip);
+        // TODO(anjo): change to pc_start
+        //get_start_eip(s, new_next_start_eip);
+        gen_op_jmp_v(eip_start_tcg);
         gen_helper_cpuid(cpu_env);
         break;
     case 0xf4: /* hlt */
         if (check_cpl0(s)) {
             gen_update_cc_op(s);
-            get_start_eip(s, new_next_start_eip);
-            gen_op_jmp_v(new_next_start_eip);
+            // TODO(anjo): change to pc_start
+            //get_start_eip(s, new_next_start_eip);
+            gen_op_jmp_v(eip_start_tcg);
             gen_helper_hlt(cpu_env, tcg_const_i32(s->pc - pc_start));
             s->base.is_jmp = DISAS_NORETURN;
         }
@@ -7497,8 +7571,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
                 goto illegal_op;
             }
             gen_update_cc_op(s);
-            get_start_eip(s, new_next_start_eip);
-            gen_op_jmp_v(new_next_start_eip);
+            // TODO(anjo): change to pc_start
+            //get_start_eip(s, new_next_start_eip);
+            gen_op_jmp_v(eip_start_tcg);
             tcg_gen_mov_tl(s->A0, cpu_regs[R_EAX]);
             gen_extu(s->aflag, s->A0);
             gen_add_A0_ds_seg(s);
@@ -7510,8 +7585,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
                 goto illegal_op;
             }
             gen_update_cc_op(s);
-            get_start_eip(s, new_next_start_eip);
-            gen_op_jmp_v(new_next_start_eip);
+            // TODO(anjo): change to pc_start
+            //get_start_eip(s, new_next_start_eip);
+            gen_op_jmp_v(eip_start_tcg);
             gen_helper_mwait(cpu_env, tcg_const_i32(s->pc - pc_start));
             s->base.is_jmp = DISAS_NORETURN;
             break;
@@ -7589,8 +7665,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
                 break;
             }
             gen_update_cc_op(s);
-            get_start_eip(s, new_next_start_eip);
-            gen_op_jmp_v(new_next_start_eip);
+            // TODO(anjo): change to pc_start
+            //get_start_eip(s, new_next_start_eip);
+            gen_op_jmp_v(eip_start_tcg);
             gen_helper_vmrun(cpu_env, tcg_const_i32(s->aflag - 1),
                              tcg_const_i32(s->pc - pc_start));
             tcg_gen_exit_tb(NULL, 0);
@@ -7602,8 +7679,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
                 goto illegal_op;
             }
             gen_update_cc_op(s);
-            get_start_eip(s, new_next_start_eip);
-            gen_op_jmp_v(new_next_start_eip);
+            // TODO(anjo): change to pc_start
+            //get_start_eip(s, new_next_start_eip);
+            gen_op_jmp_v(eip_start_tcg);
             gen_helper_vmmcall(cpu_env);
             break;
 
@@ -7615,8 +7693,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
                 break;
             }
             gen_update_cc_op(s);
-            get_start_eip(s, new_next_start_eip);
-            gen_op_jmp_v(new_next_start_eip);
+            // TODO(anjo): change to pc_start
+            //get_start_eip(s, new_next_start_eip);
+            gen_op_jmp_v(eip_start_tcg);
             gen_helper_vmload(cpu_env, tcg_const_i32(s->aflag - 1));
             break;
 
@@ -7628,8 +7707,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
                 break;
             }
             gen_update_cc_op(s);
-            get_start_eip(s, new_next_start_eip);
-            gen_op_jmp_v(new_next_start_eip);
+            // TODO(anjo): change to pc_start
+            //get_start_eip(s, new_next_start_eip);
+            gen_op_jmp_v(eip_start_tcg);
             gen_helper_vmsave(cpu_env, tcg_const_i32(s->aflag - 1));
             break;
 
@@ -7656,8 +7736,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
                 break;
             }
             gen_update_cc_op(s);
-            get_start_eip(s, new_next_start_eip);
-            gen_op_jmp_v(new_next_start_eip);
+            // TODO(anjo): change to pc_start
+            //get_start_eip(s, new_next_start_eip);
+            gen_op_jmp_v(eip_start_tcg);
             gen_helper_clgi(cpu_env);
             break;
 
@@ -7803,14 +7884,16 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
                 goto illegal_op;
             }
             gen_update_cc_op(s);
-            get_start_eip(s, new_next_start_eip);
-            gen_op_jmp_v(new_next_start_eip);
+            // TODO(anjo): change to pc_start
+            //get_start_eip(s, new_next_start_eip);
+            gen_op_jmp_v(eip_start_tcg);
             if (tb_cflags(s->base.tb) & CF_USE_ICOUNT) {
                 gen_io_start();
             }
             gen_helper_rdtscp(cpu_env);
             if (tb_cflags(s->base.tb) & CF_USE_ICOUNT) {
-                gen_jmp(s, s->pc - s->cs_base);
+                get_eip(s, new_next_eip);
+                gen_jmp(s, new_next_eip, s->pc);
             }
             break;
 
@@ -8188,7 +8271,8 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
             gen_helper_read_crN(s->T0, cpu_env, tcg_constant_i32(reg));
             gen_op_mov_reg_v(s, ot, rm, s->T0);
             if (tb_cflags(s->base.tb) & CF_USE_ICOUNT) {
-                gen_jmp(s, s->pc - s->cs_base);
+                get_eip(s, new_next_eip);
+                gen_jmp(s, new_next_eip, s->pc);
             }
         }
         break;
@@ -8259,7 +8343,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
                 goto illegal_op;
             }
             if ((s->flags & HF_EM_MASK) || (s->flags & HF_TS_MASK)) {
-                gen_exception(s, EXCP07_PREX, pc_start - s->cs_base);
+              // TODO(anjo): change to pc_start
+                //get_start_eip(s, new_next_start_eip);
+                gen_exception(s, EXCP07_PREX, eip_start_tcg);
                 break;
             }
             gen_lea_modrm(env, s, modrm);
@@ -8272,7 +8358,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
                 goto illegal_op;
             }
             if ((s->flags & HF_EM_MASK) || (s->flags & HF_TS_MASK)) {
-                gen_exception(s, EXCP07_PREX, pc_start - s->cs_base);
+              // TODO(anjo): change to pc_start
+                //get_start_eip(s, new_next_start_eip);
+                gen_exception(s, EXCP07_PREX, eip_start_tcg);
                 break;
             }
             gen_lea_modrm(env, s, modrm);
@@ -8284,7 +8372,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
                 goto illegal_op;
             }
             if (s->flags & HF_TS_MASK) {
-                gen_exception(s, EXCP07_PREX, pc_start - s->cs_base);
+              // TODO(anjo): change to pc_start
+                //get_start_eip(s, new_next_start_eip);
+                gen_exception(s, EXCP07_PREX, eip_start_tcg);
                 break;
             }
             gen_lea_modrm(env, s, modrm);
@@ -8297,7 +8387,9 @@ static target_ulong disas_insn(DisasContext *s, CPUState *cpu)
                 goto illegal_op;
             }
             if (s->flags & HF_TS_MASK) {
-                gen_exception(s, EXCP07_PREX, pc_start - s->cs_base);
+                // TODO(anjo): change to pc_start
+                //get_start_eip(s, new_next_start_eip);
+                gen_exception(s, EXCP07_PREX, eip_start_tcg);
                 break;
             }
             gen_helper_update_mxcsr(cpu_env);
@@ -8728,7 +8820,17 @@ static void i386_tr_tb_stop(DisasContextBase *dcbase, CPUState *cpu)
     DisasContext *dc = container_of(dcbase, DisasContext, base);
 
     if (dc->base.is_jmp == DISAS_TOO_MANY) {
-        gen_jmp_im(dc, dc->base.pc_next - dc->cs_base);
+        /* 
+         * TODO(anjo): We are ignoring this particular use of
+         * pc, is this correct?
+         */
+        TCGv pc = tcg_constant_tl(dc->base.pc_next);
+        TCGv base = tcg_constant_tl(dc->cs_base);
+        TCGv tmp = tcg_temp_new();
+        tcg_gen_sub_tl(tmp, pc, base);
+        gen_jmp_im(dc, tmp);
+        tcg_temp_free(tmp);
+
         gen_eob(dc);
     }
 }
