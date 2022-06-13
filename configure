@@ -736,7 +736,7 @@ for opt do
   ;;
   --disable-libtcg) libtcg="no"
   ;;
-  --enable-libtcg) libtcg="yes"; linux_user="yes"; plugins="no"; pie="yes"; static="yes"
+  --enable-libtcg) libtcg="yes"; linux_user="yes";
   ;;
   --enable-pie) pie="yes"
   ;;
@@ -1834,6 +1834,7 @@ if test "$skip_meson" = no; then
   test "$plugins" = yes && meson_option_add "-Dplugins=true"
   test "$tcg" != enabled && meson_option_add "-Dtcg=$tcg"
   test "$libtcg" = yes && meson_option_add -Dlibtcg=true
+  test "$libtcg" = yes && meson_option_add -Db_staticpic=true
   run_meson() {
     NINJA=$ninja $meson setup "$@" "$PWD" "$source_path"
   }
