@@ -213,6 +213,8 @@ LibTinyCodeInstructionList libtcg_translate(LibTinyCodeContext *context,
 
         .labels = context->desc.mem_alloc(sizeof(LibTinyCodeLabel) * LIBTCG_MAX_LABELS),
         .label_count = 0,
+
+        .size_in_bytes = tb.size,
     };
 
     /*
@@ -420,4 +422,66 @@ void libtcg_instruction_list_destroy(LibTinyCodeContext *context,
     context->desc.mem_free(instruction_list.list);
     context->desc.mem_free(instruction_list.temps);
     context->desc.mem_free(instruction_list.labels);
+}
+
+LibTcgInterface libtcg_load(void) {
+    return (LibTcgInterface) {
+        // Functions
+        .context_create           = libtcg_context_create,
+        .context_destroy          = libtcg_context_destroy,
+        .translate                = libtcg_translate,
+        .instruction_list_destroy = libtcg_instruction_list_destroy,
+
+        // CPUState variables
+        .exception_index = offsetof(ArchCPU, parent_obj)
+                           + offsetof(CPUState, exception_index),
+
+        // Target specific CPU state
+#if defined(TARGET_ALPHA)
+#elif defined(TARGET_ARM)
+#if defined(TARGET_AARCH64)
+#else
+#endif
+#elif defined(TARGET_AVR)
+#elif defined(TARGET_CRIS)
+#elif defined(TARGET_HEXAGON)
+#elif defined(TARGET_HPPA)
+#elif defined(TARGET_I386)
+#if defined(TARGET_X86_64)
+#elif
+#endif
+#elif defined(TARGET_M68K)
+#elif defined(TARGET_MICROBLAZE)
+#elif defined(TARGET_MIPS)
+#if defined(TARGET_MIPS64)
+#elif
+#endif
+#elif defined(TARGET_NIOS2)
+#elif defined(TARGET_OPENRISC)
+#elif defined(TARGET_PPC)
+#if defined(TARGET_PPC64)
+#error "lol"
+#endif
+#elif defined(TARGET_PPC64)
+#elif defined(TARGET_RISCV32)
+#if defined(TARGET_RISCV64)
+#error "lol"
+#endif
+#elif defined(TARGET_RISCV64)
+#elif defined(TARGET_RX)
+#elif defined(TARGET_S390X)
+#elif defined(TARGET_SH4)
+#elif defined(TARGET_SPARC)
+#if defined(TARGET_SPARC64)
+#error "lol"
+#endif
+#elif defined(TARGET_SPARC64)
+#elif defined(TARGET_TRICORE)
+#elif defined(TARGET_XTENSA)
+#endif
+
+#if defined(TARGET_ARM) && !defined(TARGET_AARCH64)
+        .is_thumb = offsetof(CPUArchState, thumb),
+#endif
+    };
 }

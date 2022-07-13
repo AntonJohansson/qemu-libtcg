@@ -146,7 +146,7 @@ typedef uint32_t LibTinyCodeMemOpIdx;
 
 inline LibTinyCodeMemOp tinycode_get_memop(LibTinyCodeMemOpIdx oi)
 {
-    return oi >> 4;
+    return (LibTinyCodeMemOp) (oi >> 4);
 }
 
 inline unsigned tinycode_get_mmuidx(LibTinyCodeMemOpIdx oi)
@@ -303,6 +303,8 @@ typedef struct LibTinyCodeInstructionList {
     /* Keeps track of all labels */
     LibTinyCodeLabel *labels;
     size_t label_count;
+
+    size_t size_in_bytes;
 } LibTinyCodeInstructionList;
 
 /*
@@ -332,15 +334,48 @@ typedef struct LibTinyCodeDesc {
 struct LibTinyCodeContext;
 typedef struct LibTinyCodeContext LibTinyCodeContext;
 
-LibTinyCodeContext *libtcg_context_create(LibTinyCodeDesc *desc);
-void libtcg_context_destroy(LibTinyCodeContext *context);
+#define FUNC_TYPE_NAME(name) \
+    name ## _ptr
 
-LibTinyCodeInstructionList libtcg_translate(LibTinyCodeContext *context,
-                                            char *buffer, size_t size,
-                                            uint64_t virtual_address);
+#define FUNC_DECL(ret, name, params) \
+    ret name params
 
-void libtcg_instruction_list_destroy(LibTinyCodeContext *context,
-                                     LibTinyCodeInstructionList instruction_list);
+#define FUNC_TYPE(ret, name, params) \
+    typedef ret FUNC_TYPE_NAME(name) params
+
+#define FUNC_TYPE_DECL(ret, name, params) \
+    FUNC_TYPE(ret, name, params);         \
+    FUNC_DECL(ret, name, params)
+
+FUNC_TYPE_DECL(LibTinyCodeContext *,       libtcg_context_create,           (LibTinyCodeDesc *desc));
+FUNC_TYPE_DECL(void,                       libtcg_context_destroy,          (LibTinyCodeContext *context));
+FUNC_TYPE_DECL(LibTinyCodeInstructionList, libtcg_translate,                (LibTinyCodeContext *context, char *buffer, size_t size, uint64_t virtual_address));
+FUNC_TYPE_DECL(void,                       libtcg_instruction_list_destroy, (LibTinyCodeContext *context, LibTinyCodeInstructionList));
+
+/*
+ * struct to help load functions we expose,
+ * useful when `dlopen`ing.
+ */
+typedef struct LibTcgInterface {
+    // Functions
+    FUNC_TYPE_NAME(libtcg_context_create)           *context_create;
+    FUNC_TYPE_NAME(libtcg_context_destroy)          *context_destroy;
+    FUNC_TYPE_NAME(libtcg_translate)                *translate;
+    FUNC_TYPE_NAME(libtcg_instruction_list_destroy) *instruction_list_destroy;
+
+    // CPUState variables
+    intptr_t exception_index;
+    intptr_t is_thumb;
+    intptr_t pc;
+    intptr_t sp;
+} LibTcgInterface;
+
+FUNC_TYPE_DECL(LibTcgInterface, libtcg_load, (void));
+
+#undef FUNC_DECL
+#undef FUNC_TYPE
+#undef FUNC_TYPE_DECL
+//#undef FUNC_TYPE_NAME
 
 #ifdef __cplusplus
 }
