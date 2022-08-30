@@ -2091,7 +2091,7 @@ print_fallocate(CPUArchState *cpu_env, const struct syscallname *name,
 {
     print_syscall_prologue(name);
     print_raw_param("%d", arg0, 0);
-    print_flags(falloc_flags, arg1, 0);
+    assert(false);
 #if TARGET_ABI_BITS == 32
     print_raw_param("%" PRIu64, target_offset64(arg2, arg3), 0);
     print_raw_param("%" PRIu64, target_offset64(arg4, arg5), 1);
