@@ -3146,6 +3146,10 @@ config_host_data.set('CONFIG_CAPSTONE', capstone.found())
 config_host_data.set('CONFIG_FDT', fdt.found())
 config_host_data.set('CONFIG_SLIRP', slirp.found())
 
+if have_libtcg
+  subdir('llvm-helpers')
+endif
+
 #####################
 # Generated sources #
 #####################
@@ -3854,6 +3858,18 @@ foreach target : target_dirs
                  build_by_default: false,
                  name_suffix: 'fa')
 
+  # TODO(anjo): We should only feed the bare minimum of
+  # files through this!
+  custom_target('to-ll-' + target_name,
+      output: 'libtcg-helpers-' + target_name + '.bc',
+      input: arch_srcs,
+      depend_files: to_ll,
+      command: [to_ll, clang, llvm_link, opt, '@OUTPUT@', '@INPUT@'],
+      install: true,
+      install_dir: 'lib',
+      build_by_default: true,
+      )
+
   if target.endswith('-softmmu')
     execs = [{
       'name': 'qemu-system-' + target_name,
@@ -3881,7 +3897,8 @@ foreach target : target_dirs
   elif have_libtcg
     install_headers('include/libtcg/libtcg.h', subdir: 'qemu/libtcg')
     install_headers('include/tcg/tcg-opc.h', subdir: 'qemu/libtcg/tcg')
-    emulator = shared_library('qemu-' + target_name,
+    # Note "lib" gets prepended automatically!
+    emulator = shared_library('tcg-' + target_name,
                               include_directories: target_inc,
                               install: true,
                               objects: lib.extract_all_objects(recursive: true),
@@ -3982,7 +3999,7 @@ subdir('qga')
 
 # Don't build qemu-keymap if xkbcommon is not explicitly enabled
 # when we don't build tools or system
-if xkbcommon.found()
+if not have_libtcg and xkbcommon.found()
   # used for the update-keymaps target, so include rules even if !have_tools
   qemu_keymap = executable('qemu-keymap', files('qemu-keymap.c', 'ui/input-keymap.c') + genh,
                            dependencies: [qemuutil, xkbcommon], install: have_tools)
@@ -4032,7 +4049,9 @@ endif
 
 subdir('scripts')
 subdir('tools')
-subdir('pc-bios')
+if not have_libtcg
+  subdir('pc-bios')
+endif
 subdir('docs')
 subdir('tests')
 if gtk.found()
