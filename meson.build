@@ -3864,7 +3864,7 @@ foreach target : target_dirs
       output: 'libtcg-helpers-' + target_name + '.bc',
       input: arch_srcs,
       depend_files: to_ll,
-      command: [to_ll, clang, llvm_link, opt, '@OUTPUT@', '@INPUT@'],
+      command: [to_ll, target_name, 'target'/target_base_arch, clang, llvm_link, opt, '@OUTPUT@', '@INPUT@'],
       install: true,
       install_dir: 'lib',
       build_by_default: true,
