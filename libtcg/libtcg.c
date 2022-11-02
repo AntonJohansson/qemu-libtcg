@@ -61,6 +61,7 @@ typedef struct BytecodeRegion {
         CPUState *cpu = env_cpu(env);                                   \
         BytecodeRegion *region = cpu->opaque;                           \
         uint64_t offset = (uintptr_t)ptr - region->virtual_address;     \
+            printf("    ptr: %lu\n", ptr); \
             printf("    offset: %lu\n", offset); \
             printf("    region->size: %lu\n", region->size);\
             printf("    region->virtual_address: %lu\n", region->virtual_address);\
@@ -90,7 +91,7 @@ const char *libtcg_get_instruction_name(LibTcgOpcode opcode)
     return def.name;
 }
 
-LibTcgCallInfo libtcg_get_call_info(LibTcgInstruction *insn)
+LibTcgHelperInfo libtcg_get_helper_info(LibTcgInstruction *insn)
 {
     /*
      * For a call instruction, the first constant argument holds
@@ -105,7 +106,7 @@ LibTcgCallInfo libtcg_get_call_info(LibTcgInstruction *insn)
     assert(insn->opcode == LIBTCG_op_call);
     uintptr_t ptr_to_helper_info = insn->constant_args[1].constant;
     TCGHelperInfo *info = (void *) ptr_to_helper_info;
-    return (LibTcgCallInfo) {
+    return (LibTcgHelperInfo) {
         .func_name = info->name,
         .func_flags = info->flags,
     };
@@ -170,6 +171,7 @@ LibTcgInstructionList libtcg_translate(LibTcgContext *context,
                                             size_t size,
                                             uint64_t virtual_address)
 {
+    //CONTHERE: Can a non-constant argument actually be constant?
     BytecodeRegion region = {
         .buffer = buffer,
         .size = size,
@@ -187,7 +189,7 @@ LibTcgInstructionList libtcg_translate(LibTcgContext *context,
      * We then override `pc`.
      */
     cpu_get_tb_cpu_state(context->cpu->env_ptr, &pc, &cs_base, &flags);
-    pc = cs_base + virtual_address;
+    pc = virtual_address;
 
     uint32_t cflags = context->cpu->cflags_next_tb;
     if (cflags == -1) {
@@ -453,6 +455,8 @@ uint8_t *libtcg_env_ptr(LibTcgContext *context)
 LibTcgInterface libtcg_load(void) {
     return (LibTcgInterface) {
         // Functions
+        .get_instruction_name       = libtcg_get_instruction_name,
+        .get_helper_info            = libtcg_get_helper_info,
         .context_create             = libtcg_context_create,
         .context_destroy            = libtcg_context_destroy,
         .translate                  = libtcg_translate,
