@@ -133,10 +133,10 @@ void translator_loop(const TranslatorOps *ops, DisasContextBase *db,
         }
     }
 
-#ifndef CONFIG_LIBTCG
     /* Emit code to exit the TB, as indicated by db->is_jmp.  */
     ops->tb_stop(db, cpu);
     gen_tb_end(db->tb, db->num_insns);
+#ifndef CONFIG_LIBTCG
 
     if (plugin_enabled) {
         plugin_gen_tb_end(cpu);
