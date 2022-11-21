@@ -252,6 +252,7 @@ LibTcgInstructionList libtcg_translate(LibTcgContext *context,
             .nb_args = def.nb_args,
         };
 
+        printf("opc: %lu\n", opc);
         if (opc == INDEX_op_call) {
             const TCGHelperInfo *info = tcg_call_info(op);
 
@@ -260,10 +261,7 @@ LibTcgInstructionList libtcg_translate(LibTcgContext *context,
             insn.nb_args = insn.nb_oargs + insn.nb_iargs + insn.nb_cargs;
 
             void *func = tcg_call_func(op);
-            if (func != info->func) {
-                /* Call is to a plugin */
-                assert(false);
-            }
+            assert(func == info->func);
         }
 
         /*
