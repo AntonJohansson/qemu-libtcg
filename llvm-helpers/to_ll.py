@@ -60,8 +60,93 @@ def temp_file(output_folder, file):
     new_file = os.path.join(dir, filename) + ".bc"
     return new_file
 
+def should_skip_file(source_dir, target, path):
+    helpers = {
+        "arm" : [
+            source_dir + "/target/arm/op_helper.c",
+            source_dir + "/target/arm/helper.c",
+            source_dir + "/target/arm/neon_helper.c",
+            source_dir + "/linux-user/arm/nwfpe/fpa11.c",
+            source_dir + "/linux-user/arm/nwfpe/fpa11_cpdo.c",
+            source_dir + "/linux-user/arm/nwfpe/fpa11_cpdt.c",
+            source_dir + "/linux-user/arm/nwfpe/fpa11_cprt.c",
+            source_dir + "/linux-user/arm/nwfpe/fpopcode.c",
+            source_dir + "/linux-user/arm/nwfpe/single_cpdo.c",
+            source_dir + "/linux-user/arm/nwfpe/double_cpdo.c",
+            source_dir + "/linux-user/arm/nwfpe/extended_cpdo.c",
+            source_dir + "/linux-user/arm/cpu_loop.c",
+            source_dir + "/linux-user/arm/signal.c",
+            source_dir + "/linux-user/main.c",
+            source_dir + "/linux-user/syscall.c",
+            source_dir + "/linux-user/mmap.c",
+            source_dir + "/linux-user/signal.c",
+            source_dir + "/linux-user/uaccess.c",
+            source_dir + "/linux-user/init_cpu.c",
+            source_dir + "/linux-user/uname.c",
+        ],
+        "aarch64" : [
+            source_dir + "/target/arm/op_helper.c",
+            source_dir + "/target/arm/helper.c",
+            source_dir + "/target/arm/helper-a64.c",
+            source_dir + "/target/arm/neon_helper.c"
+        ],
+        "s390x" : [
+            source_dir + "/target/s390x/helper.c",
+            source_dir + "/target/s390x/int_helper.c",
+            source_dir + "/target/s390x/fpu_helper.c",
+            source_dir + "/target/s390x/cc_helper.c",
+            source_dir + "/target/s390x/mem_helper.c",
+            source_dir + "/target/s390x/misc_helper.c",
+        ],
+        "i386" : [
+            source_dir + "/target/i386/tcg/helper.bc",
+            source_dir + "/target/i386/tcg/user/excp_helper.bc",
+            source_dir + "/target/i386/tcg/user/seg_helper.bc",
+            source_dir + "/target/i386/tcg/fpu_helper.bc",
+            source_dir + "/target/i386/tcg/cc_helper.bc",
+            source_dir + "/target/i386/tcg/int_helper.bc",
+            source_dir + "/target/i386/tcg/svm_helper.bc",
+            source_dir + "/target/i386/tcg/smm_helper.bc",
+            source_dir + "/target/i386/tcg/misc_helper.bc",
+            source_dir + "/target/i386/tcg/mem_helper.bc",
+        ],
+        "x86_64" : [
+            source_dir + "/target/i386/tcg/helper.bc",
+            source_dir + "/target/i386/tcg/excp_helper.bc",
+            source_dir + "/target/i386/tcg/fpu_helper.bc",
+            source_dir + "/target/i386/tcg/cc_helper.bc",
+            source_dir + "/target/i386/tcg/int_helper.bc",
+            source_dir + "/target/i386/tcg/svm_helper.bc",
+            source_dir + "/target/i386/tcg/smm_helper.bc",
+            source_dir + "/target/i386/tcg/misc_helper.bc",
+            source_dir + "/target/i386/tcg/mem_helper.bc",
+            source_dir + "/target/i386/tcg/seg_helper.bc",
+        ],
+        "mips" : [
+            source_dir + "/target/mips/tcg/helper.bc",
+            source_dir + "/target/mips/tcg/dsp_helper.bc",
+            source_dir + "/target/mips/tcg/op_helper.bc",
+            source_dir + "/target/mips/tcg/lmi_helper.bc",
+            source_dir + "/target/mips/tcg/msa_helper.bc",
+        ],
+        "mipsel" : [
+            source_dir + "/target/mips/tcg/helper.bc",
+            source_dir + "/target/mips/tcg/dsp_helper.bc",
+            source_dir + "/target/mips/tcg/op_helper.bc",
+            source_dir + "/target/mips/tcg/lmi_helper.bc",
+            source_dir + "/target/mips/tcg/msa_helper.bc",
+        ],
+    }
+
+    print("Looking for " + path)
+    print("  in ")
+    print(helpers[target])
+
+    return not path in helpers[target]
+
 def main():
     parser = argparse.ArgumentParser(description='Produce the LLVM IR for a given source file.')
+    parser.add_argument('source_dir',  metavar='SOURCE_DIR',            help='qemu source directory')
     parser.add_argument('target_name', metavar='TARGET_NAME',           help='Name of target')
     parser.add_argument('target',      metavar='TARGET',                help='Target')
     parser.add_argument("clang",       metavar="CLANG_PATH",            help="Path to clang.")
@@ -76,18 +161,11 @@ def main():
 
     # Generate LLVM IR
     ll_paths = []
+    print(args.source_dir)
     for input_path in args.input_paths:
-        if "accel/" in input_path or \
-           "libtcg/" in input_path or \
-           "plugins/" in input_path or \
-           "semihosting/" in input_path or \
-           input_path.endswith(".inc") or \
-           input_path.endswith(".h") or \
-           input_path.endswith(".pyinc") or \
-           input_path.endswith(".py") or \
-           "gdb" in input_path:
+        print(os.path.abspath(input_path))
+        if should_skip_file(args.source_dir, args.target_name, os.path.abspath(input_path)):
             continue
-        print(input_path)
         output_path = temp_file(output_folder, input_path)
         ll_paths.append(output_path)
         generate_llvm_ir(args.target, args.clang, input_path, output_path)
