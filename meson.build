@@ -3414,15 +3414,17 @@ foreach target : target_dirs
 
   # TODO(anjo): We should only feed the bare minimum of
   # files through this!
-  custom_target('to-ll-' + target_name,
-      output: 'libtcg-helpers-' + target_name + '.bc',
-      input: arch_srcs,
-      depend_files: to_ll,
-      command: [to_ll, meson.current_source_dir(), target_name, 'target'/target_base_arch, clang, llvm_link, opt, '@OUTPUT@', '@INPUT@'],
-      install: true,
-      install_dir: 'lib',
-      build_by_default: true,
-      )
+  if have_libtcg
+    custom_target('to-ll-' + target_name,
+        output: 'libtcg-helpers-' + target_name + '.bc',
+        input: arch_srcs,
+        depend_files: to_ll,
+        command: [to_ll, meson.current_source_dir(), target_name, 'target'/target_base_arch, clang, llvm_link, opt, '@OUTPUT@', '@INPUT@'],
+        install: true,
+        install_dir: 'lib',
+        build_by_default: true,
+        )
+  endif
 
   if target.endswith('-softmmu')
     execs = [{
