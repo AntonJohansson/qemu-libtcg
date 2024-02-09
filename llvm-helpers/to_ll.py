@@ -8,9 +8,12 @@ import sys
 import subprocess
 
 def run_command(argv):
-    proc = subprocess.Popen(argv)
+    proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out,err = proc.communicate()
     if proc.wait() != 0:
         print("Command exited with %d:\n%s\n" % (proc.returncode," ".join(argv)))
+        print(f"out:\n{out}\n")
+        print(f"err:\n{err}\n")
 
 def find_compile_commands(target_name, clang_path, input_path):
     if os.path.exists("compile_commands.json"):
@@ -44,7 +47,7 @@ def generate_llvm_ir(target_name, clang_path, input_path, output_path):
         if arg in {'-MQ', '-o', '-MF'}:
             del argv[i:i+2]
 
-    argv += ["-Wno-unknown-warning-option",  "-emit-llvm", "-disable-O0-optnone -O0", "-o", output_path]
+    argv += ["-Wno-unknown-warning-option",  "-emit-llvm", "-O0", "-Xclang", "-disable-O0-optnone", "-o", output_path]
 
     run_command(argv)
 
@@ -138,9 +141,9 @@ def should_skip_file(source_dir, target, path):
         ],
     }
 
-    print("Looking for " + path)
-    print("  in ")
-    print(helpers[target])
+    #print("Looking for " + path)
+    #print("  in ")
+    #print(helpers[target])
 
     return not path in helpers[target]
 
