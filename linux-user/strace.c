@@ -1264,26 +1264,6 @@ UNUSED static const struct flags statx_mask[] = {
     FLAG_END,
 };
 
-UNUSED static const struct flags falloc_flags[] = {
-    FLAG_GENERIC(FALLOC_FL_KEEP_SIZE),
-    FLAG_GENERIC(FALLOC_FL_PUNCH_HOLE),
-#ifdef FALLOC_FL_NO_HIDE_STALE
-    FLAG_GENERIC(FALLOC_FL_NO_HIDE_STALE),
-#endif
-#ifdef FALLOC_FL_COLLAPSE_RANGE
-    FLAG_GENERIC(FALLOC_FL_COLLAPSE_RANGE),
-#endif
-#ifdef FALLOC_FL_ZERO_RANGE
-    FLAG_GENERIC(FALLOC_FL_ZERO_RANGE),
-#endif
-#ifdef FALLOC_FL_INSERT_RANGE
-    FLAG_GENERIC(FALLOC_FL_INSERT_RANGE),
-#endif
-#ifdef FALLOC_FL_UNSHARE_RANGE
-    FLAG_GENERIC(FALLOC_FL_UNSHARE_RANGE),
-#endif
-};
-
 UNUSED static const struct flags termios_iflags[] = {
     FLAG_TARGET(IGNBRK),
     FLAG_TARGET(BRKINT),
