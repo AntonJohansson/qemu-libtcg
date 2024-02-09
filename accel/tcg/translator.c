@@ -148,9 +148,9 @@ void translator_loop(CPUState *cpu, TranslationBlock *tb, int *max_insns,
     ops->init_disas_context(db, cpu);
     tcg_debug_assert(db->is_jmp == DISAS_NEXT);  /* no early exit */
 
-#ifndef CONFIG_LIBTCG
     /* Start translating.  */
     icount_start_insn = gen_tb_start(db, cflags);
+#ifndef CONFIG_LIBTCG
     ops->tb_start(db, cpu);
     tcg_debug_assert(db->is_jmp == DISAS_NEXT);  /* no early exit */
 
