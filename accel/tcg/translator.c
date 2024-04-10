@@ -18,6 +18,7 @@
 
 static void set_can_do_io(DisasContextBase *db, bool val)
 {
+#ifndef CONFIG_LIBTCG
     if (db->saved_can_do_io != val) {
         db->saved_can_do_io = val;
 
@@ -26,6 +27,7 @@ static void set_can_do_io(DisasContextBase *db, bool val)
                         offsetof(ArchCPU, parent_obj.neg.can_do_io) -
                         offsetof(ArchCPU, env));
     }
+#endif
 }
 
 bool translator_io_start(DisasContextBase *db)
@@ -236,6 +238,7 @@ void translator_loop(CPUState *cpu, TranslationBlock *tb, int *max_insns,
     }
 }
 
+#ifndef CONFIG_LIBTSCG
 static void *translator_access(CPUArchState *env, DisasContextBase *db,
                                vaddr pc, size_t len)
 {
@@ -300,6 +303,7 @@ static void *translator_access(CPUArchState *env, DisasContextBase *db,
     tcg_debug_assert(pc >= base);
     return host + (pc - base);
 }
+#endif
 
 static void plugin_insn_append(abi_ptr pc, const void *from, size_t size)
 {

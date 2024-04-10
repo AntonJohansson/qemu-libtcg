@@ -3861,11 +3861,17 @@ foreach target : target_dirs
   # TODO(anjo): We should only feed the bare minimum of
   # files through this!
   if have_libtcg
+    # TODO(anjo): We're not feeding any input files which means meson isn't able to
+    # track dependencies correctly. Problem is, for targets which uses the decodetree
+    # this will cause decode-insns.c.inc to be generated twice, causing meson to bail.
+    #
+    # We also don't use the @INPUT@ field in the command, but it's required to ensure
+    # we depend on generated files and can compiler to .bc without troubles.
     custom_target('to-ll-' + target_name,
         output: 'libtcg-helpers-' + target_name + '.bc',
-        input: arch_srcs,
         depend_files: to_ll,
-        command: [to_ll, meson.current_source_dir(), target_name, 'target'/target_base_arch, clang, llvm_link, opt, '@OUTPUT@', '@INPUT@'],
+        input: genh,
+        command: [to_ll, meson.current_source_dir(), target_name, 'target'/target_base_arch, clang, llvm_link, opt, '@OUTPUT@'],
         install: true,
         install_dir: 'lib',
         build_by_default: true,

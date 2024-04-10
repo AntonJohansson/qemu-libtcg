@@ -133,7 +133,11 @@ LibTcgContext *libtcg_context_create(LibTcgDesc *desc)
 
     qemu_init_cpu_list();
     module_call_init(MODULE_INIT_QOM);
+#if defined(TARGET_HEXAGON)
+    uint32_t elf_flags = 0x73;
+#else
     uint32_t elf_flags = 0;
+#endif
     const char *cpu_model = cpu_get_model(elf_flags);
     const char *cpu_type = parse_cpu_option(cpu_model);
     /* Initializes accel/tcg */
@@ -168,6 +172,7 @@ void libtcg_context_destroy(LibTcgContext *context)
 
 LibTcgInstructionList libtcg_translate(LibTcgContext *context,
                                        const unsigned char *buffer,
+                                       uint64_t start_address,
                                        size_t size,
                                        uint64_t virtual_address,
                                        uint32_t translate_flags)
@@ -176,7 +181,7 @@ LibTcgInstructionList libtcg_translate(LibTcgContext *context,
     BytecodeRegion region = {
         .buffer = buffer,
         .size = size,
-        .virtual_address = virtual_address,
+        .virtual_address = start_address,
     };
     context->cpu->opaque = &region;
 
@@ -208,6 +213,8 @@ LibTcgInstructionList libtcg_translate(LibTcgContext *context,
         context->cpu->cflags_next_tb = -1;
     }
     cflags |= CF_NO_GOTO_TB;
+    cflags &= ~CF_USE_ICOUNT;
+    cflags |= CF_NOIRQ;
 
     /* 
      * Initialize backend fields to avoid 
@@ -230,6 +237,8 @@ LibTcgInstructionList libtcg_translate(LibTcgContext *context,
     tb->max_pc = virtual_address + size;
     tb->flags = flags;
     tb->cflags = cflags;
+
+    tcg_ctx->gen_tb = tb;
 
     void *host_pc = NULL;
     gen_intermediate_code(context->cpu, tb, &max_insns, pc, host_pc);
@@ -520,8 +529,8 @@ LibTcgInterface libtcg_load(void) {
         .sp = 0, /* NOTE(anjo): UNCHECKED */
         .arch_cpu_name = "CRISCPU",
 #elif defined(TARGET_HEXAGON)
-        .pc = 0, /* NOTE(anjo): UNCHECKED */
-        .sp = 0, /* NOTE(anjo): UNCHECKED */
+        .pc = offsetof(CPUArchState, gpr[41]), /* NOTE(anjo): UNCHECKED */
+        .sp = offsetof(CPUArchState, gpr[29]), /* NOTE(anjo): UNCHECKED */
         .arch_cpu_name = "HexagonCPU",
 #elif defined(TARGET_HPPA)
         .pc = 0, /* NOTE(anjo): UNCHECKED */
@@ -611,6 +620,12 @@ LibTcgInterface libtcg_load(void) {
         .pc = 0, /* NOTE(anjo): UNCHECKED */
         .sp = 0, /* NOTE(anjo): UNCHECKED */
         .arch_cpu_name = "XtensaCPU",
+#elif defined(TARGET_LOONGARCH64)
+        .pc = 0, /* NOTE(anjo): UNCHECKED */
+        .sp = 0, /* NOTE(anjo): UNCHECKED */
+        .arch_cpu_name = "",
+#else
+    #error Unhandled target
 #endif
     };
 }
