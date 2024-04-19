@@ -65,6 +65,7 @@ have_linux_user = false
 have_bsd_user = false
 have_system = false
 have_libtcg = get_option('libtcg')
+have_llvm_helpers = get_option('llvm-helpers')
 foreach target : target_dirs
   have_linux_user = have_linux_user or target.endswith('linux-user')
   have_bsd_user = have_bsd_user or target.endswith('bsd-user')
@@ -3146,7 +3147,7 @@ config_host_data.set('CONFIG_CAPSTONE', capstone.found())
 config_host_data.set('CONFIG_FDT', fdt.found())
 config_host_data.set('CONFIG_SLIRP', slirp.found())
 
-if have_libtcg
+if have_llvm_helpers
   subdir('llvm-helpers')
 endif
 
@@ -3860,7 +3861,7 @@ foreach target : target_dirs
 
   # TODO(anjo): We should only feed the bare minimum of
   # files through this!
-  if have_libtcg
+  if have_llvm_helpers
     # TODO(anjo): We're not feeding any input files which means meson isn't able to
     # track dependencies correctly. Problem is, for targets which uses the decodetree
     # this will cause decode-insns.c.inc to be generated twice, causing meson to bail.
