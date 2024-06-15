@@ -43,9 +43,11 @@ helpers = {
         "linux-user/signal.c",
         "linux-user/uaccess.c",
         "linux-user/uname.c",
+        "qom/object.c",
     ],
     "aarch64" : [
         "target/arm/helper.c",
+        "target/arm/debug_helper.c",
         "target/arm/tcg/crypto_helper.c",
         "target/arm/tcg/helper-a64.c",
         "target/arm/tcg/hflags.c",
@@ -77,6 +79,7 @@ helpers = {
         "linux-user/signal.c",
         "linux-user/uaccess.c",
         "linux-user/uname.c",
+        "qom/object.c",
     ],
     "s390x" : [
         "target/s390x/tcg/cc_helper.c",
@@ -291,7 +294,8 @@ def find_compile_commands(target_name, clang_path, input_path):
                 command = compile_command["command"]
                 print(f"TARGET_NAME: {target_name}");
                 print(f"OUTPUT_NAME: {compile_command['output']}");
-                if not compile_command["output"].startswith(f"libqemu-{target_name}-"):
+                if not compile_command["output"].startswith(f"libqemu-{target_name}-") \
+                   and not compile_command["output"].startswith("libqom"):
                     continue
 
                 argv = shlex.split(command)
