@@ -20,5 +20,11 @@
 set -e
 set -o pipefail
 
+compiler=$1
+input=$2
+incdir=$3
+output=$4
+
 # Run the preprocessor and drop comments
-cpp "$@"
+echo "COMPILER ${compiler}"
+${compiler} -E -I${incdir} ${input} -o ${output}
