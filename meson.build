@@ -2913,12 +2913,15 @@ fdt_required = []
 foreach target : target_dirs
   config_target = { 'TARGET_NAME': target.split('-')[0] }
   if target.endswith('linux-user')
-    if targetos != 'linux'
-      if default_targets
-        continue
-      endif
-      error('Target @0@ is only available on a Linux host'.format(target))
-    endif
+
+    #if targetos != 'linux'
+    #  if default_targets
+    #    continue
+    #  endif
+    #  error('Target @0@ is only available on a Linux host'.format(target))
+    #endif
+
+
     config_target += { 'CONFIG_LINUX_USER': 'y' }
   elif target.endswith('bsd-user')
     if targetos not in bsd_oses
@@ -3395,11 +3398,11 @@ subdir('stubs')
 subdir('trace')
 subdir('util')
 subdir('qom')
-subdir('authz')
-subdir('crypto')
-subdir('ui')
+#subdir('authz')
+#subdir('crypto')
+#subdir('ui')
 subdir('hw')
-subdir('gdbstub')
+#subdir('gdbstub')
 
 if enable_modules
   libmodulecommon = static_library('module-common', files('module-common.c') + genh, pic: true, c_args: '-DBUILD_DSO')
@@ -3476,7 +3479,7 @@ if have_block
 endif
 
 common_ss.add(files('cpu-common.c'))
-specific_ss.add(files('cpu-target.c'))
+#specific_ss.add(files('cpu-target.c'))
 
 subdir('system')
 
@@ -3500,28 +3503,28 @@ endif
 common_ss.add(pagevary)
 specific_ss.add(files('page-vary-target.c'))
 
-subdir('backends')
+#subdir('backends')
 subdir('disas')
 subdir('migration')
-subdir('monitor')
-subdir('net')
+#subdir('monitor')
+#subdir('net')
 subdir('replay')
-subdir('semihosting')
+#subdir('semihosting')
 subdir('stats')
 subdir('tcg')
 subdir('fpu')
 subdir('accel')
-subdir('plugins')
-subdir('ebpf')
+#subdir('plugins')
+#subdir('ebpf')
 if have_libtcg
   subdir('libtcg')
 endif
 
 common_user_inc = []
 
-subdir('common-user')
-subdir('bsd-user')
-subdir('linux-user')
+#subdir('common-user')
+#subdir('bsd-user')
+#subdir('linux-user')
 
 # needed for fuzzing binaries
 subdir('tests/qtest/libqos')
@@ -3815,15 +3818,6 @@ foreach target : target_dirs
       base_dir,
       base_dir / abi,
     )
-    if 'CONFIG_LINUX_USER' in config_target
-      dir = base_dir / abi
-      arch_srcs += files(dir / 'signal.c', dir / 'cpu_loop.c')
-      if config_target.has_key('TARGET_SYSTBL_ABI')
-        arch_srcs += \
-          syscall_nr_generators[abi].process(base_dir / abi / config_target['TARGET_SYSTBL'],
-                                             extra_args : config_target['TARGET_SYSTBL_ABI'])
-      endif
-    endif
   endif
 
   if 'TARGET_XML_FILES' in config_target
