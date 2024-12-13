@@ -806,11 +806,7 @@ mak_wilds=""
 
 if [ -n "$host_arch" ] && [ -d "$source_path/common-user/host/$host_arch" ]; then
     if [ "$linux_user" != no ]; then
-        if [ "$targetos" = linux ]; then
-            linux_user=yes
-        elif [ "$linux_user" = yes ]; then
-            error_exit "linux-user not supported on this architecture"
-        fi
+	linux_user=yes
         if [ "$linux_user" = "yes" ]; then
             mak_wilds="${mak_wilds} $source_path/configs/targets/*-linux-user.mak"
         fi
