@@ -390,9 +390,9 @@ static bool gicd_readl(GICv3State *s, hwaddr offset,
          * MBIS == 0 (message-based SPIs not supported)
          * SecurityExtn == 1 if security extns supported
          * CPUNumber == 0 since for us ARE is always 1
-         * ITLinesNumber == (num external irqs / 32) - 1
+         * ITLinesNumber == (((max SPI IntID + 1) / 32) - 1)
          */
-        int itlinesnumber = ((s->num_irq - GIC_INTERNAL) / 32) - 1;
+        int itlinesnumber = (s->num_irq / 32) - 1;
         /*
          * SecurityExtn must be RAZ if GICD_CTLR.DS == 1, and
          * "security extensions not supported" always implies DS == 1,
@@ -564,7 +564,7 @@ static bool gicd_readl(GICv3State *s, hwaddr offset,
         /* WO registers, return unknown value */
         qemu_log_mask(LOG_GUEST_ERROR,
                       "%s: invalid guest read from WO register at offset "
-                      TARGET_FMT_plx "\n", __func__, offset);
+                      HWADDR_FMT_plx "\n", __func__, offset);
         *data = 0;
         return true;
     default:
@@ -611,7 +611,7 @@ static bool gicd_writel(GICv3State *s, hwaddr offset,
         if (value & mask & GICD_CTLR_DS) {
             /* We just set DS, so the ARE_NS and EnG1S bits are now RES0.
              * Note that this is a one-way transition because if DS is set
-             * then it's not writeable, so it can only go back to 0 with a
+             * then it's not writable, so it can only go back to 0 with a
              * hardware reset.
              */
             s->gicd_ctlr &= ~(GICD_CTLR_EN_GRP1S | GICD_CTLR_ARE_NS);
@@ -773,7 +773,7 @@ static bool gicd_writel(GICv3State *s, hwaddr offset,
         /* RO registers, ignore the write */
         qemu_log_mask(LOG_GUEST_ERROR,
                       "%s: invalid guest write to RO register at offset "
-                      TARGET_FMT_plx "\n", __func__, offset);
+                      HWADDR_FMT_plx "\n", __func__, offset);
         return true;
     default:
         return false;
@@ -838,7 +838,7 @@ MemTxResult gicv3_dist_read(void *opaque, hwaddr offset, uint64_t *data,
 
     if (!r) {
         qemu_log_mask(LOG_GUEST_ERROR,
-                      "%s: invalid guest read at offset " TARGET_FMT_plx
+                      "%s: invalid guest read at offset " HWADDR_FMT_plx
                       " size %u\n", __func__, offset, size);
         trace_gicv3_dist_badread(offset, size, attrs.secure);
         /* The spec requires that reserved registers are RAZ/WI;
@@ -879,7 +879,7 @@ MemTxResult gicv3_dist_write(void *opaque, hwaddr offset, uint64_t data,
 
     if (!r) {
         qemu_log_mask(LOG_GUEST_ERROR,
-                      "%s: invalid guest write at offset " TARGET_FMT_plx
+                      "%s: invalid guest write at offset " HWADDR_FMT_plx
                       " size %u\n", __func__, offset, size);
         trace_gicv3_dist_badwrite(offset, data, size, attrs.secure);
         /* The spec requires that reserved registers are RAZ/WI;

@@ -25,6 +25,7 @@
 #include "qemu/guest-random.h"
 #include "semihosting/common-semi.h"
 #include "target/arm/syndrome.h"
+#include "target/arm/cpu-features.h"
 
 #define get_user_code_u32(x, gaddr, env)                \
     ({ abi_long __r = get_user_u32((x), (gaddr));       \
@@ -89,6 +90,8 @@ void cpu_loop(CPUARMState *env)
 
         switch (trapnr) {
         case EXCP_SWI:
+            /* On syscall, PSTATE.ZA is preserved, PSTATE.SM is cleared. */
+            aarch64_set_svcr(env, 0, R_SVCR_SM_MASK);
             ret = do_syscall(env,
                              env->xregs[8],
                              env->xregs[0],
@@ -154,7 +157,7 @@ void cpu_loop(CPUARMState *env)
             force_sig_fault(TARGET_SIGTRAP, TARGET_TRAP_BRKPT, env->pc);
             break;
         case EXCP_SEMIHOST:
-            env->xregs[0] = do_common_semihosting(cs);
+            do_common_semihosting(cs);
             env->pc += 4;
             break;
         case EXCP_YIELD:
@@ -184,7 +187,9 @@ void cpu_loop(CPUARMState *env)
 
 void target_cpu_copy_regs(CPUArchState *env, struct target_pt_regs *regs)
 {
+#if !defined(GEN_LLVM_HELPERS) && !defined(CONFIG_LIBTCG)
     ARMCPU *cpu = env_archcpu(env);
+#endif
     CPUState *cs = env_cpu(env);
     TaskState *ts = cs->opaque;
     struct image_info *info = ts->info;
@@ -209,9 +214,11 @@ void target_cpu_copy_regs(CPUArchState *env, struct target_pt_regs *regs)
     arm_rebuild_hflags(env);
 #endif
 
+#if !defined(GEN_LLVM_HELPERS) && !defined(CONFIG_LIBTCG)
     if (cpu_isar_feature(aa64_pauth, cpu)) {
         qemu_guest_getrandom_nofail(&env->keys, sizeof(env->keys));
     }
+#endif
 
     ts->stack_base = info->start_stack;
     ts->heap_base = info->brk;

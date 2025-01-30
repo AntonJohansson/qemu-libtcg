@@ -26,7 +26,11 @@ extern int qemu_loglevel;
 /* Returns true if a bit is set in the current loglevel mask */
 static inline bool qemu_loglevel_mask(int mask)
 {
+#ifndef GEN_LLVM_HELPERS
     return (qemu_loglevel & mask) != 0;
+#else
+    return false;
+#endif
 }
 
 /* main logging function */
