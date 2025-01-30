@@ -8,6 +8,8 @@ import sys
 import subprocess
 
 common_files = [
+    "accel/tcg/tcg-runtime.c",
+    "accel/tcg/tcg-runtime-gvec.c",
     "accel/tcg/user-exec.c",
     "linux-user/main.c",
     "linux-user/syscall.c",
@@ -180,7 +182,6 @@ helpers = {
         "target/loongarch/fpu_helper.c",
         "target/loongarch/op_helper.c",
         "target/loongarch/translate.c",
-        "target/loongarch/vec_helper.c",
         "target/loongarch/vec_helper.c",
         "target/loongarch/cpu.c",
         "linux-user/loongarch64/cpu_loop.c",
