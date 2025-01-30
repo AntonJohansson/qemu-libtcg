@@ -3762,6 +3762,9 @@ if targetos == 'darwin'
   entitlement = find_program('scripts/entitlement.sh')
 endif
 
+passes = subproject('passes')
+dump_fp = passes.get_variable('dump_fp')
+
 emulators = {}
 foreach target : target_dirs
   config_target = config_target_mak[target]
@@ -3865,7 +3868,7 @@ foreach target : target_dirs
     #
     # We also don't use the @INPUT@ field in the command, but it's required to ensure
     # we depend on generated files and can compiler to .bc without troubles.
-    custom_target('to-ll-' + target_name,
+    target_ll = custom_target('to-ll-' + target_name,
         output: 'libtcg-helpers-' + target_name + '.bc',
         depend_files: to_ll,
         input: genh,
@@ -3874,6 +3877,21 @@ foreach target : target_dirs
         install_dir: 'lib',
         build_by_default: true,
         )
+
+    processed_ll = custom_target('processed-' + target_name,
+        output: 'libtcg-helpers-' + target_name + '-processed.ll',
+        input: target_ll,
+        command: ['opt', '@INPUT@',
+                  '-load-pass-plugin', dump_fp,
+                  '-passes', 'dump-fp,default<O2>',
+                  '--out-float', '@OUTPUT@',
+                  '--skip-gvec',
+                  '--disable-output'],
+        build_by_default: true,
+        install: true,
+        install_dir: 'lib',
+    )
+
   endif
 
   if target.endswith('-softmmu')
