@@ -8,8 +8,10 @@
 
 #include "exec/user/abitypes.h"
 
+#ifdef GEN_LLVM_HELPERS
 #include "syscall_defs.h"
 #include "target_syscall.h"
+#endif
 
 /*
  * This is the size of the host kernel's sigset_t, needed where we make
@@ -92,10 +94,12 @@ struct vm86_saved_state {
 #include "nwfpe/fpa11.h"
 #endif
 
+#ifdef GEN_LLVM_HELPERS
 struct emulated_sigtable {
     int pending; /* true if signal is pending */
     target_siginfo_t info;
 };
+#endif
 
 typedef struct TaskState {
     pid_t ts_tid;     /* tid (or pid) of this task */
@@ -111,7 +115,9 @@ typedef struct TaskState {
 #if defined(TARGET_I386) && !defined(TARGET_X86_64)
     abi_ulong target_v86;
     struct vm86_saved_state vm86_saved_regs;
+#ifdef GEN_LLVM_HELPERS
     struct target_vm86plus_struct vm86plus;
+#endif
     uint32_t v86flags;
     uint32_t v86mask;
 #endif
@@ -129,8 +135,10 @@ typedef struct TaskState {
     struct image_info *info;
     struct linux_binprm *bprm;
 
+#ifdef GEN_LLVM_HELPERS
     struct emulated_sigtable sync_signal;
     struct emulated_sigtable sigtab[TARGET_NSIG];
+#endif
     /*
      * This thread's signal mask, as requested by the guest program.
      * The actual signal mask of this thread may differ:
@@ -156,7 +164,9 @@ typedef struct TaskState {
     int signal_pending;
 
     /* This thread's sigaltstack, if it has one */
+#ifdef GEN_LLVM_HELPERS
     struct target_sigaltstack sigaltstack_used;
+#endif
 
     /* Start time of task after system boot in clock ticks */
     uint64_t start_boottime;
