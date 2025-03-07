@@ -3399,7 +3399,7 @@ subdir('trace')
 subdir('util')
 subdir('qom')
 #subdir('authz')
-#subdir('crypto')
+subdir('crypto')
 #subdir('ui')
 subdir('hw')
 #subdir('gdbstub')
@@ -3479,7 +3479,7 @@ if have_block
 endif
 
 common_ss.add(files('cpu-common.c'))
-#specific_ss.add(files('cpu-target.c'))
+specific_ss.add(files('cpu-target.c'))
 
 subdir('system')
 
@@ -3522,8 +3522,10 @@ endif
 
 common_user_inc = []
 
-#subdir('common-user')
 #subdir('bsd-user')
+if have_llvm_helpers
+  subdir('common-user')
+endif
 #subdir('linux-user')
 
 # needed for fuzzing binaries
@@ -3818,6 +3820,18 @@ foreach target : target_dirs
       base_dir,
       base_dir / abi,
     )
+      dir = base_dir / abi
+      #arch_srcs += files(dir / 'cpu_loop.c')
+      arch_srcs += files('dummy.c')
+    if have_llvm_helpers and 'CONFIG_LINUX_USER' in config_target
+      dir = base_dir / abi
+      #arch_srcs += files(dir / 'signal.c', dir / 'cpu_loop.c')
+      if config_target.has_key('TARGET_SYSTBL_ABI')
+        arch_srcs += \
+          syscall_nr_generators[abi].process(base_dir / abi / config_target['TARGET_SYSTBL'],
+                                             extra_args : config_target['TARGET_SYSTBL_ABI'])
+      endif
+    endif
   endif
 
   if 'TARGET_XML_FILES' in config_target
