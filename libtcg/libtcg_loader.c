@@ -6,6 +6,12 @@
 
 #define ARRLEN(arr) (sizeof(arr) / sizeof(arr[0]))
 
+#if defined(__APPLE__)
+const char dylib_ext = "dylib";
+#else
+const char dylib_ext = "so";
+#endif
+
 typedef struct LibTcgLibraryInfo {
     void *handle;
     LibTcgContext *context;
@@ -59,7 +65,7 @@ const char *libtcg_arch_name(LibTcgArch arch) {
 const char *libtcg_arch_file(LibTcgArch arch) {
     static char buf[64] = {0};
     const char *name = arch_names[arch];
-    snprintf(buf, ARRLEN(buf)-1, "libtcg-%s.so", name);
+    snprintf(buf, ARRLEN(buf)-1, "libtcg-%s.%s", name, dylib_ext);
     return buf;
 }
 
