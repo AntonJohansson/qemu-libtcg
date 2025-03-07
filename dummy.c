@@ -98,7 +98,7 @@ void target_cpu_copy_regs(CPUArchState *env, struct target_pt_regs *regs)
     #if defined(TARGET_AARCH64)
 void target_cpu_copy_regs(CPUArchState *env, struct target_pt_regs *regs)
 {
-#ifndef CONFIG_LIBTCG
+#if !defined(GEN_LLVM_HELPERS) && !defined(CONFIG_LIBTCG)
     ARMCPU *cpu = env_archcpu(env);
 #endif
 
@@ -126,7 +126,7 @@ void target_cpu_copy_regs(CPUArchState *env, struct target_pt_regs *regs)
     arm_rebuild_hflags(env);
 #endif
 
-#ifndef CONFIG_LIBTCG
+#if !defined(GEN_LLVM_HELPERS) && !defined(CONFIG_LIBTCG)
     if (cpu_isar_feature(aa64_pauth, cpu)) {
         qemu_guest_getrandom_nofail(&env->keys, sizeof(env->keys));
     }
@@ -216,7 +216,7 @@ void target_cpu_copy_regs(CPUArchState *env, struct target_pt_regs *regs)
 {
     CPUState *cpu = env_cpu(env);
     bool is64 = (env->features[FEAT_8000_0001_EDX] & CPUID_EXT2_LM) != 0;
-#ifndef CONFIG_LIBTCG
+#if !defined(GEN_LLVM_HELPERS) && !defined(CONFIG_LIBTCG)
     int i;
 #endif
 
