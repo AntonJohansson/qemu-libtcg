@@ -22,7 +22,9 @@
 #include "exec/exec-all.h"
 #include "exec/tb-flush.h"
 #include "qemu/log.h"
-#include <linux/mman.h>
+#ifdef GEN_LLVM_HELPERS
+  #include <linux/mman.h>
+#endif
 
 extern char *exec_path;
 void init_task_state(TaskState *ts);
