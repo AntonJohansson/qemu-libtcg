@@ -5,6 +5,8 @@
 #include "exec/user/abitypes.h"
 #include "exec/memopidx.h"
 
+struct target_pt_regs;
+
 void cpu_loop_exit_sigbus(CPUState *cpu, target_ulong addr,
                           MMUAccessType access_type, uintptr_t ra);
 void cpu_loop_exit_sigsegv(CPUState *cpu, target_ulong addr,
@@ -23,7 +25,7 @@ void qemu_plugin_vcpu_exit_hook(CPUState *cpu);
 void qemu_plugin_vcpu_mem_cb(CPUState *cpu, uint64_t vaddr,
                              MemOpIdx oi, int rw);
 
-void target_cpu_copy_regs(CPUArchState *env, void *regs);
+void target_cpu_copy_regs(CPUArchState *env, struct target_pt_regs *regs);
 void gdb_register_coprocessor(CPUState *cpu,
                               void * get_reg, void * set_reg,
                               int num_regs, const char *xml, int g_pos);
