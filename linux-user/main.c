@@ -25,7 +25,9 @@
 #include <sys/syscall.h>
 #include <sys/resource.h>
 #include <sys/shm.h>
-#include <linux/binfmts.h>
+#ifdef GEN_LLVM_HELPERS
+  #include <linux/binfmts.h>
+#endif
 
 #include "qapi/error.h"
 #include "qemu.h"
