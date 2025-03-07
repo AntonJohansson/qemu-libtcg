@@ -21,7 +21,9 @@
 #define CPU_LOOP_COMMON_H
 
 #include "exec/log.h"
+#ifndef CONFIG_LIBTCG
 #include "special-errno.h"
+#endif
 
 void target_exception_dump(CPUArchState *env, const char *fmt, int code);
 #define EXCP_DUMP(env, fmt, code) \
