@@ -1,4 +1,7 @@
 #include "dummy.h"
+#include "linux-user/qemu.h"
+#include "elf.h"
+#include "target_syscall.h"
 
 uintptr_t guest_base;
 unsigned long reserved_va;
@@ -207,7 +210,7 @@ void target_cpu_copy_regs(CPUArchState *env, struct target_pt_regs *regs)
     bool is64 = (env->features[FEAT_8000_0001_EDX] & CPUID_EXT2_LM) != 0;
     int i;
 
-    OBJECT(cpu)->free = target_cpu_free;
+    OBJECT(cpu)->free = NULL;
     env->cr[0] = CR0_PG_MASK | CR0_WP_MASK | CR0_PE_MASK;
     env->hflags |= HF_PE_MASK | HF_CPL_MASK;
     if (env->features[FEAT_1_EDX] & CPUID_SSE) {
@@ -260,40 +263,7 @@ void target_cpu_copy_regs(CPUArchState *env, struct target_pt_regs *regs)
 #else
     env->idt.limit = 255;
 #endif
-    env->idt.base = target_mmap(0, sizeof(uint64_t) * (env->idt.limit + 1),
-                                PROT_READ|PROT_WRITE,
-                                MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
-    idt_table = g2h_untagged(env->idt.base);
-    for (i = 0; i < 20; i++) {
-        set_idt(i, 0, is64);
-    }
-    set_idt(3, 3, is64);
-    set_idt(4, 3, is64);
-    set_idt(0x80, 3, is64);
 
-    /* linux segment setup */
-    {
-        uint64_t *gdt_table;
-        env->gdt.base = target_mmap(0, sizeof(uint64_t) * TARGET_GDT_ENTRIES,
-                                    PROT_READ|PROT_WRITE,
-                                    MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
-        env->gdt.limit = sizeof(uint64_t) * TARGET_GDT_ENTRIES - 1;
-        gdt_table = g2h_untagged(env->gdt.base);
-#ifdef TARGET_ABI32
-        write_dt(&gdt_table[__USER_CS >> 3], 0, 0xfffff,
-                 DESC_G_MASK | DESC_B_MASK | DESC_P_MASK | DESC_S_MASK |
-                 (3 << DESC_DPL_SHIFT) | (0xa << DESC_TYPE_SHIFT));
-#else
-        /* 64 bit code segment */
-        write_dt(&gdt_table[__USER_CS >> 3], 0, 0xfffff,
-                 DESC_G_MASK | DESC_B_MASK | DESC_P_MASK | DESC_S_MASK |
-                 DESC_L_MASK |
-                 (3 << DESC_DPL_SHIFT) | (0xa << DESC_TYPE_SHIFT));
-#endif
-        write_dt(&gdt_table[__USER_DS >> 3], 0, 0xfffff,
-                 DESC_G_MASK | DESC_B_MASK | DESC_P_MASK | DESC_S_MASK |
-                 (3 << DESC_DPL_SHIFT) | (0x2 << DESC_TYPE_SHIFT));
-    }
     cpu_x86_load_seg(env, R_CS, __USER_CS);
     cpu_x86_load_seg(env, R_SS, __USER_DS);
 #ifdef TARGET_ABI32
@@ -379,6 +349,9 @@ void target_cpu_copy_regs(CPUArchState *env, struct target_pt_regs *regs)
     env->pc = regs->pc;
 }
 #elif defined(TARGET_MIPS)
+
+#include "fpu_helper.h"
+
 void target_cpu_copy_regs(CPUArchState *env, struct target_pt_regs *regs)
 {
     CPUState *cpu = env_cpu(env);
@@ -535,7 +508,6 @@ void target_cpu_copy_regs(CPUArchState *env, struct target_pt_regs *regs)
     env->elf_flags = info->elf_flags;
 
     if ((env->misa_ext & RVE) && !(env->elf_flags & EF_RISCV_RVE)) {
-        error_report("Incompatible ELF: RVE cpu requires RVE ABI binary");
         exit(EXIT_FAILURE);
     }
 
