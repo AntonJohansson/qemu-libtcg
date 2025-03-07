@@ -11,7 +11,6 @@
 #include <sys/syscall.h>
 #include <sys/resource.h>
 #include <sys/shm.h>
-#include <linux/binfmts.h>
 
 #include "qapi/error.h"
 
