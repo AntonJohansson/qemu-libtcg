@@ -69,12 +69,17 @@ void gdb_register_coprocessor(CPUState *cpu,
 {
 }
 
+#if defined(TARGET_PPC) || defined(TARGET_PPC64)
 uint64_t cpu_ppc_load_atbl(CPUArchState *env) {return 0;}
 uint32_t cpu_ppc_load_atbu(CPUArchState *env) {return 0;}
 uint64_t cpu_ppc_load_tbl(CPUArchState *env) {return 0;}
 uint32_t cpu_ppc_load_tbu(CPUArchState *env) {return 0;}
 uint64_t cpu_ppc_load_vtb(CPUArchState *env) {return 0;}
+#endif
+
+#ifdef TARGET_I386
 uint64_t cpu_get_tsc(CPUArchState *env) {return 0;}
+#endif
 
 
 
@@ -93,7 +98,10 @@ void target_cpu_copy_regs(CPUArchState *env, struct target_pt_regs *regs)
     #if defined(TARGET_AARCH64)
 void target_cpu_copy_regs(CPUArchState *env, struct target_pt_regs *regs)
 {
+#ifndef CONFIG_LIBTCG
     ARMCPU *cpu = env_archcpu(env);
+#endif
+
     CPUState *cs = env_cpu(env);
     TaskState *ts = cs->opaque;
     struct image_info *info = ts->info;
@@ -208,7 +216,9 @@ void target_cpu_copy_regs(CPUArchState *env, struct target_pt_regs *regs)
 {
     CPUState *cpu = env_cpu(env);
     bool is64 = (env->features[FEAT_8000_0001_EDX] & CPUID_EXT2_LM) != 0;
+#ifndef CONFIG_LIBTCG
     int i;
+#endif
 
     OBJECT(cpu)->free = NULL;
     env->cr[0] = CR0_PG_MASK | CR0_WP_MASK | CR0_PE_MASK;
