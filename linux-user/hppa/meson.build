@@ -4,7 +4,8 @@ syscall_nr_generators += {
                     output: '@BASENAME@_nr.h')
 }
 
-vdso_inc = gen_vdso.process('vdso.so',
-                            extra_args: [ '-r', '__kernel_sigtramp_rt' ])
-
-linux_user_ss.add(when: 'TARGET_HPPA', if_true: vdso_inc)
+if have_llvm_helpers
+  vdso_inc = gen_vdso.process('vdso.so',
+                              extra_args: [ '-r', '__kernel_sigtramp_rt' ])
+  linux_user_ss.add(when: 'TARGET_HPPA', if_true: vdso_inc)
+endif
