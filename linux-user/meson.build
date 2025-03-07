@@ -8,32 +8,41 @@ common_user_inc += include_directories('include/host/' / host_arch)
 common_user_inc += include_directories('include')
 
 linux_user_ss.add(files(
-  'elfload.c',
-  'exit.c',
-  'fd-trans.c',
-  'linuxload.c',
-  'main.c',
-  'mmap.c',
-  'signal.c',
-  'strace.c',
-  'syscall.c',
-  'thunk.c',
-  'uaccess.c',
-  'uname.c',
 ))
 linux_user_ss.add(rt)
 linux_user_ss.add(libdw)
 
-linux_user_ss.add(when: 'TARGET_HAS_BFLT', if_true: files('flatload.c'))
-linux_user_ss.add(when: 'TARGET_I386', if_true: files('vm86.c'))
-linux_user_ss.add(when: 'CONFIG_ARM_COMPATIBLE_SEMIHOSTING', if_true: files('semihost.c'))
+if have_llvm_helpers
+  linux_user_ss.add(files(
+  'main.c',
+    'fd-trans.c',
+    'syscall.c',
+    'exit.c',
+    'elfload.c',
+    'signal.c',
+    'strace.c',
+    'uname.c',
+    'uaccess.c',
+    'linuxload.c',
+    'mmap.c',
+    'thunk.c',
+  ))
+endif
+
+if have_llvm_helpers
+  linux_user_ss.add(when: 'TARGET_HAS_BFLT', if_true: files('flatload.c'))
+  linux_user_ss.add(when: 'TARGET_I386', if_true: files('vm86.c'))
+  linux_user_ss.add(when: 'CONFIG_ARM_COMPATIBLE_SEMIHOSTING', if_true: files('semihost.c'))
+endif
 
 syscall_nr_generators = {}
 
-gen_vdso_exe = executable('gen-vdso', 'gen-vdso.c',
-                          native: true, build_by_default: false)
-gen_vdso = generator(gen_vdso_exe, output: '@BASENAME@.c.inc',
-                     arguments: ['-o', '@OUTPUT@', '@EXTRA_ARGS@', '@INPUT@'])
+if have_llvm_helpers
+  gen_vdso_exe = executable('gen-vdso', 'gen-vdso.c',
+                            native: true, build_by_default: false)
+  gen_vdso = generator(gen_vdso_exe, output: '@BASENAME@.c.inc',
+                       arguments: ['-o', '@OUTPUT@', '@EXTRA_ARGS@', '@INPUT@'])
+endif
 
 subdir('aarch64')
 subdir('alpha')
