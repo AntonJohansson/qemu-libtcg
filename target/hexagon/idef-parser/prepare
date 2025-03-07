@@ -26,5 +26,4 @@ incdir=$3
 output=$4
 
 # Run the preprocessor and drop comments
-echo "COMPILER ${compiler}"
-${compiler} -E -I${incdir} ${input} -o ${output}
+${compiler} -x c -E -I${incdir} ${input} -o ${output}
