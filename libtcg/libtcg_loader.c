@@ -7,9 +7,9 @@
 #define ARRLEN(arr) (sizeof(arr) / sizeof(arr[0]))
 
 #if defined(__APPLE__)
-const char dylib_ext = "dylib";
+const char *dylib_ext = "dylib";
 #else
-const char dylib_ext = "so";
+const char *dylib_ext = "so";
 #endif
 
 typedef struct LibTcgLibraryInfo {
