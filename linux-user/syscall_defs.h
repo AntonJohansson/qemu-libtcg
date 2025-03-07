@@ -7,8 +7,7 @@
 #ifndef SYSCALL_DEFS_H
 #define SYSCALL_DEFS_H
 
-#include "syscall_nr.h"
-
+#include <syscall_nr.h>
 
 /* socket operations for socketcall() */
 #define TARGET_SYS_SOCKET       1         /* socket()              */
@@ -1923,7 +1922,6 @@ struct target_stat {
     abi_ulong  target_st_mtime_nsec;
     abi_long  target_st_ctime;
     abi_ulong  target_st_ctime_nsec;
-    abi_uint __unused[2];
 };
 #elif defined(TARGET_XTENSA)
 #define TARGET_STAT_HAVE_NSEC
